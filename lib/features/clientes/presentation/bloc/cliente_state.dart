@@ -28,3 +28,14 @@ class ClienteError extends ClienteState {
   @override
   List<Object> get props => [message];
 }
+
+class ClienteCreating extends ClienteState {}
+
+class ClienteCreated extends ClienteState {
+  final Cliente cliente;
+
+  const ClienteCreated(this.cliente);
+
+  @override
+  List<Object> get props => [cliente];
+}

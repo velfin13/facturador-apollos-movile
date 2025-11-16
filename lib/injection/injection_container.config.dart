@@ -27,6 +27,8 @@ import 'package:facturador/features/clientes/data/repositories/cliente_repositor
     as _i633;
 import 'package:facturador/features/clientes/domain/repositories/cliente_repository.dart'
     as _i340;
+import 'package:facturador/features/clientes/domain/usecases/create_cliente.dart'
+    as _i1046;
 import 'package:facturador/features/clientes/domain/usecases/get_clientes.dart'
     as _i244;
 import 'package:facturador/features/clientes/presentation/bloc/cliente_bloc.dart'
@@ -91,6 +93,9 @@ extension GetItInjectableX on _i174.GetIt {
         remoteDataSource: gh<_i554.ProductoRemoteDataSource>(),
       ),
     );
+    gh.lazySingleton<_i1046.CreateCliente>(
+      () => _i1046.CreateCliente(gh<_i340.ClienteRepository>()),
+    );
     gh.lazySingleton<_i244.GetClientes>(
       () => _i244.GetClientes(gh<_i340.ClienteRepository>()),
     );
@@ -110,7 +115,10 @@ extension GetItInjectableX on _i174.GetIt {
       ),
     );
     gh.factory<_i396.ClienteBloc>(
-      () => _i396.ClienteBloc(getClientes: gh<_i244.GetClientes>()),
+      () => _i396.ClienteBloc(
+        getClientes: gh<_i244.GetClientes>(),
+        createCliente: gh<_i1046.CreateCliente>(),
+      ),
     );
     gh.factory<_i209.ProductoBloc>(
       () => _i209.ProductoBloc(getProductos: gh<_i660.GetProductos>()),

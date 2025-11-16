@@ -8,3 +8,12 @@ abstract class ClienteEvent extends Equatable {
 }
 
 class GetClientesEvent extends ClienteEvent {}
+
+class CreateClienteEvent extends ClienteEvent {
+  final Cliente cliente;
+
+  const CreateClienteEvent(this.cliente);
+
+  @override
+  List<Object> get props => [cliente];
+}

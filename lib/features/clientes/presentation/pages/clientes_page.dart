@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../injection/injection_container.dart';
 import '../bloc/cliente_bloc.dart';
 import '../widgets/cliente_list_widget.dart';
+import 'crear_cliente_page.dart';
 
 class ClientesPage extends StatelessWidget {
   const ClientesPage({super.key});
@@ -53,11 +54,20 @@ class ClientesPage extends StatelessWidget {
           },
         ),
         floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            // TODO: Navegar a crear cliente
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Crear cliente - Próximamente')),
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BlocProvider(
+                  create: (_) => getIt<ClienteBloc>(),
+                  child: const CrearClientePage(),
+                ),
+              ),
             );
+
+            if (result == true && context.mounted) {
+              context.read<ClienteBloc>().add(GetClientesEvent());
+            }
           },
           child: const Icon(Icons.add),
         ),

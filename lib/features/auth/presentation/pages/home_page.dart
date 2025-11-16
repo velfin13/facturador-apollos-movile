@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/auth_bloc.dart';
 import '../../domain/entities/usuario.dart';
+import '../../../../injection/injection_container.dart';
 import '../../../clientes/presentation/pages/clientes_page.dart';
+import '../../../clientes/presentation/pages/crear_cliente_page.dart';
+import '../../../clientes/presentation/bloc/cliente_bloc.dart';
 import '../../../productos/presentation/pages/productos_page.dart';
 import '../../../facturacion/presentation/pages/facturas_page.dart';
 import '../../../facturacion/presentation/pages/crear_factura_page.dart';
@@ -70,6 +73,22 @@ class HomePage extends StatelessWidget {
               () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ClientesPage()),
+              ),
+            ),
+          if (usuario.esAdmin)
+            _buildMenuCard(
+              context,
+              'Nuevo Cliente',
+              Icons.person_add,
+              Colors.teal,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => BlocProvider(
+                    create: (_) => getIt<ClienteBloc>(),
+                    child: const CrearClientePage(),
+                  ),
+                ),
               ),
             ),
           if (usuario.esAdmin)
