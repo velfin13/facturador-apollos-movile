@@ -9,7 +9,10 @@ class Factura extends Equatable {
   final String? clienteNombre; // desde cliente
   final String? numFact;
   final String? observacion;
-  final double total; // calculado desde detalles
+  final double subtotal; // subtotal sin IVA
+  final double ivaTotal; // total de IVA
+  final double descTotal; // total de descuentos
+  final double total; // total final
   final List<ItemFactura> items;
   final List<FormaPago> formasPago;
 
@@ -22,6 +25,9 @@ class Factura extends Equatable {
     this.clienteNombre,
     this.numFact,
     this.observacion,
+    required this.subtotal,
+    required this.ivaTotal,
+    required this.descTotal,
     required this.total,
     required this.items,
     required this.formasPago,
@@ -37,6 +43,9 @@ class Factura extends Equatable {
     clienteNombre,
     numFact,
     observacion,
+    subtotal,
+    ivaTotal,
+    descTotal,
     total,
     items,
     formasPago,

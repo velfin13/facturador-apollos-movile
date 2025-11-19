@@ -36,7 +36,6 @@ class FacturaListWidget extends StatelessWidget {
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             onTap: () {
-              // TODO: Navegar a detalle de factura
               _showFacturaDetails(context, factura);
             },
           ),
@@ -50,36 +49,71 @@ class FacturaListWidget extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Factura ${factura.numFact ?? factura.id}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Cliente: ${factura.clienteNombre ?? factura.clienteId}'),
-            Text('Fecha: ${DateFormat('dd/MM/yyyy').format(factura.fecha)}'),
-            if (factura.observacion != null && factura.observacion!.isNotEmpty)
-              Text('Observación: ${factura.observacion}'),
-            const SizedBox(height: 16),
-            const Text('Items:', style: TextStyle(fontWeight: FontWeight.bold)),
-            if (factura.items.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(left: 8, top: 4),
-                child: Text('No hay detalles disponibles'),
-              )
-            else
-              ...factura.items.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.only(left: 8, top: 4),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Cliente: ${factura.clienteNombre ?? factura.clienteId}'),
+              Text('Fecha: ${DateFormat('dd/MM/yyyy').format(factura.fecha)}'),
+              if (factura.observacion != null &&
+                  factura.observacion!.isNotEmpty)
+                Text('Observación: ${factura.observacion}'),
+              const SizedBox(height: 16),
+              const Text(
+                'Items:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              if (factura.items.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(left: 8, top: 4),
+                  child: Text('No hay detalles disponibles'),
+                )
+              else
+                ...factura.items.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(left: 8, top: 4),
+                    child: Text(
+                      '• ${item.productoNombre ?? item.productoId} x${item.cantidad.toInt()} = \$${item.subtotal.toStringAsFixed(2)}',
+                    ),
+                  ),
+                ),
+              const Divider(),
+              if (factura.descTotal > 0) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    '• ${item.productoNombre ?? item.productoId} x${item.cantidad.toInt()} = \$${item.subtotal.toStringAsFixed(2)}',
+                    'Descuento: -\$${factura.descTotal.toStringAsFixed(2)}',
+                    style: const TextStyle(color: Colors.green),
+                  ),
+                ),
+              ],
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Subtotal: \$${factura.subtotal.toStringAsFixed(2)}',
+                ),
+              ),
+              if (factura.ivaTotal > 0) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'IVA (15%): \$${factura.ivaTotal.toStringAsFixed(2)}',
+                  ),
+                ),
+              ],
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Total: \$${factura.total.toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
                 ),
               ),
-            const Divider(),
-            Text(
-              'Total: \$${factura.total.toStringAsFixed(2)}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(

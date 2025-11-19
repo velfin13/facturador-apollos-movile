@@ -15,6 +15,9 @@ FacturaModel _$FacturaModelFromJson(Map<String, dynamic> json) => FacturaModel(
   clienteNombre: json['clienteNombre'] as String?,
   numFact: json['numFact'] as String?,
   observacion: json['observacion'] as String?,
+  subtotal: (json['subtotal'] as num).toDouble(),
+  ivaTotal: (json['ivaTotal'] as num).toDouble(),
+  descTotal: (json['descTotal'] as num).toDouble(),
   total: (json['total'] as num).toDouble(),
   detalles: (json['detalles'] as List<dynamic>)
       .map((e) => ItemFacturaModel.fromJson(e as Map<String, dynamic>))
@@ -31,6 +34,9 @@ Map<String, dynamic> _$FacturaModelToJson(FacturaModel instance) =>
       'clienteNombre': ?instance.clienteNombre,
       'numFact': ?instance.numFact,
       'observacion': ?instance.observacion,
+      'subtotal': instance.subtotal,
+      'ivaTotal': instance.ivaTotal,
+      'descTotal': instance.descTotal,
       'total': instance.total,
       'idSysFcCabVenta': instance.idSysFcCabVenta,
       'idSysPeriodo': instance.idSysPeriodo,
@@ -42,7 +48,7 @@ Map<String, dynamic> _$FacturaModelToJson(FacturaModel instance) =>
 ItemFacturaModel _$ItemFacturaModelFromJson(Map<String, dynamic> json) =>
     ItemFacturaModel(
       idSysInProducto: json['idSysInProducto'] as String,
-      productoNombre: json['productoNombre'] as String?,
+      descripcionProducto: json['descripcionProducto'] as String?,
       cantidad: (json['cantidad'] as num).toDouble(),
       valor: (json['valor'] as num).toDouble(),
       descuentoPorcentaje: (json['descuentoPorcentaje'] as num?)?.toDouble(),
@@ -51,12 +57,12 @@ ItemFacturaModel _$ItemFacturaModelFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$ItemFacturaModelToJson(ItemFacturaModel instance) =>
     <String, dynamic>{
-      'productoNombre': ?instance.productoNombre,
       'cantidad': instance.cantidad,
       'valor': instance.valor,
       'descuentoPorcentaje': ?instance.descuentoPorcentaje,
       'bodegaId': ?instance.bodegaId,
       'idSysInProducto': instance.idSysInProducto,
+      'descripcionProducto': ?instance.descripcionProducto,
     };
 
 FormaPagoModel _$FormaPagoModelFromJson(Map<String, dynamic> json) =>

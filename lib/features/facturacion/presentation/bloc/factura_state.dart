@@ -20,6 +20,15 @@ class FacturaLoaded extends FacturaState {
   List<Object> get props => [facturas];
 }
 
+class FacturaDetailsLoaded extends FacturaState {
+  final Factura factura;
+
+  const FacturaDetailsLoaded(this.factura);
+
+  @override
+  List<Object> get props => [factura];
+}
+
 class FacturaError extends FacturaState {
   final String message;
 

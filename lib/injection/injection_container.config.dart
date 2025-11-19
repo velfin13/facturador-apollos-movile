@@ -40,6 +40,7 @@ import '../features/facturacion/data/repositories/factura_repository_impl.dart'
 import '../features/facturacion/domain/repositories/factura_repository.dart'
     as _i757;
 import '../features/facturacion/domain/usecases/create_factura.dart' as _i281;
+import '../features/facturacion/domain/usecases/get_factura.dart' as _i756;
 import '../features/facturacion/domain/usecases/get_facturas.dart' as _i92;
 import '../features/facturacion/presentation/bloc/factura_bloc.dart' as _i246;
 import '../features/productos/data/datasources/producto_remote_data_source.dart'
@@ -126,6 +127,9 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i223.GetProductos>(
       () => _i223.GetProductos(gh<_i797.ProductoRepository>()),
     );
+    gh.factory<_i756.GetFactura>(
+      () => _i756.GetFactura(gh<_i757.FacturaRepository>()),
+    );
     gh.lazySingleton<_i281.CreateFactura>(
       () => _i281.CreateFactura(gh<_i757.FacturaRepository>()),
     );
@@ -153,6 +157,7 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i246.FacturaBloc>(
       () => _i246.FacturaBloc(
         getFacturas: gh<_i92.GetFacturas>(),
+        getFactura: gh<_i756.GetFactura>(),
         createFactura: gh<_i281.CreateFactura>(),
       ),
     );

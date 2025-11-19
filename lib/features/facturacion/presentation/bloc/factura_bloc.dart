@@ -4,6 +4,7 @@ import 'package:injectable/injectable.dart';
 import '../../../../core/usecases/usecase.dart';
 import '../../domain/entities/factura.dart';
 import '../../domain/usecases/get_facturas.dart';
+import '../../domain/usecases/get_factura.dart';
 import '../../domain/usecases/create_factura.dart';
 
 part 'factura_event.dart';
@@ -12,11 +13,16 @@ part 'factura_state.dart';
 @injectable
 class FacturaBloc extends Bloc<FacturaEvent, FacturaState> {
   final GetFacturas getFacturas;
+  final GetFactura getFactura;
   final CreateFactura createFactura;
 
-  FacturaBloc({required this.getFacturas, required this.createFactura})
-    : super(FacturaInitial()) {
+  FacturaBloc({
+    required this.getFacturas,
+    required this.getFactura,
+    required this.createFactura,
+  }) : super(FacturaInitial()) {
     on<GetFacturasEvent>(_onGetFacturas);
+    on<GetFacturaDetailsEvent>(_onGetFacturaDetails);
     on<CreateFacturaEvent>(_onCreateFactura);
   }
 
@@ -31,6 +37,18 @@ class FacturaBloc extends Bloc<FacturaEvent, FacturaState> {
     failureOrFacturas.fold(
       (failure) => emit(FacturaError(failure.message)),
       (facturas) => emit(FacturaLoaded(facturas)),
+    );
+  }
+
+  Future<void> _onGetFacturaDetails(
+    GetFacturaDetailsEvent event,
+    Emitter<FacturaState> emit,
+  ) async {
+    final failureOrFactura = await getFactura(event.id);
+
+    failureOrFactura.fold(
+      (failure) => emit(FacturaError(failure.message)),
+      (factura) => emit(FacturaDetailsLoaded(factura)),
     );
   }
 

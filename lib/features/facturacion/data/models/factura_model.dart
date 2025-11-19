@@ -29,6 +29,9 @@ class FacturaModel extends Factura {
     super.clienteNombre,
     super.numFact,
     super.observacion,
+    required super.subtotal,
+    required super.ivaTotal,
+    required super.descTotal,
     required super.total,
     required this.detalles,
     required this.formasPagoModel,
@@ -66,6 +69,9 @@ class FacturaModel extends Factura {
       clienteNombre: json['nombreCliente'] as String?,
       numFact: json['numFact'] as String?,
       observacion: json['observacion'] as String?,
+      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
+      ivaTotal: (json['ivaTotal'] as num?)?.toDouble() ?? 0.0,
+      descTotal: (json['descTotal'] as num?)?.toDouble() ?? 0.0,
       total: (json['total'] as num).toDouble(),
       detalles: detalles,
       formasPagoModel: formasPago,
@@ -84,6 +90,9 @@ class FacturaModel extends Factura {
       clienteNombre: factura.clienteNombre,
       numFact: factura.numFact,
       observacion: factura.observacion,
+      subtotal: factura.subtotal,
+      ivaTotal: factura.ivaTotal,
+      descTotal: factura.descTotal,
       total: factura.total,
       detalles: factura.items
           .map((item) => ItemFacturaModel.fromEntity(item))
@@ -100,14 +109,17 @@ class ItemFacturaModel extends ItemFactura {
   @JsonKey(name: 'idSysInProducto')
   final String idSysInProducto;
 
+  @JsonKey(name: 'descripcionProducto')
+  final String? descripcionProducto;
+
   const ItemFacturaModel({
     required this.idSysInProducto,
-    super.productoNombre,
+    this.descripcionProducto,
     required super.cantidad,
     required super.valor,
     super.descuentoPorcentaje,
     super.bodegaId,
-  }) : super(productoId: idSysInProducto);
+  }) : super(productoId: idSysInProducto, productoNombre: descripcionProducto);
 
   factory ItemFacturaModel.fromJson(Map<String, dynamic> json) =>
       _$ItemFacturaModelFromJson(json);
@@ -117,7 +129,7 @@ class ItemFacturaModel extends ItemFactura {
   factory ItemFacturaModel.fromEntity(ItemFactura item) {
     return ItemFacturaModel(
       idSysInProducto: item.productoId,
-      productoNombre: item.productoNombre,
+      descripcionProducto: item.productoNombre,
       cantidad: item.cantidad,
       valor: item.valor,
       descuentoPorcentaje: item.descuentoPorcentaje,

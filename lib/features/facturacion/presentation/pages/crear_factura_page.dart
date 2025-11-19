@@ -39,6 +39,14 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
     return _items.fold(0.0, (sum, item) => sum + item.subtotal);
   }
 
+  double get _ivaTotal {
+    return _items.fold(0.0, (sum, item) => sum + item.iva);
+  }
+
+  double get _total {
+    return _subtotal + _ivaTotal;
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocListener<FacturaBloc, FacturaState>(
@@ -268,6 +276,35 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
+                                const Text('Subtotal:'),
+                                Text(
+                                  '\$${_subtotal.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_ivaTotal > 0) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('IVA (15%):'),
+                                  Text(
+                                    '\$${_ivaTotal.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            const Divider(height: 16),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
                                 const Text(
                                   'TOTAL:',
                                   style: TextStyle(
@@ -276,7 +313,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                                   ),
                                 ),
                                 Text(
-                                  '\$${_subtotal.toStringAsFixed(2)}',
+                                  '\$${_total.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
@@ -364,7 +401,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         FormaPago(
           formaPagoId: 'EFE',
           formaPagoNombre: 'Efectivo',
-          valor: _subtotal,
+          valor: _total,
           numero: null,
           referencia: null,
           fechaVence: null,
@@ -383,7 +420,10 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         observacion: _observacionController.text.trim().isEmpty
             ? null
             : _observacionController.text.trim(),
-        total: _subtotal,
+        subtotal: _subtotal,
+        ivaTotal: _ivaTotal,
+        descTotal: 0.0,
+        total: _total,
         items: itemsFactura,
         formasPago: formasPago,
       );
@@ -399,15 +439,19 @@ class ItemFacturaTemp {
   final String descripcion;
   final int cantidad;
   final double precioUnitario;
+  final bool aplicaIva;
 
   ItemFacturaTemp({
     required this.productoId,
     required this.descripcion,
     required this.cantidad,
     required this.precioUnitario,
+    required this.aplicaIva,
   });
 
   double get subtotal => cantidad * precioUnitario;
+  double get iva => aplicaIva ? subtotal * 0.15 : 0.0;
+  double get total => subtotal + iva;
 }
 
 class _AgregarItemDialog extends StatefulWidget {
@@ -523,6 +567,7 @@ class _AgregarItemDialogState extends State<_AgregarItemDialog> {
                 descripcion: _productoSeleccionado!.descripcion,
                 cantidad: int.parse(_cantidadController.text),
                 precioUnitario: double.parse(_precioController.text),
+                aplicaIva: _productoSeleccionado!.iva == 'S',
               );
               widget.onAgregar(item);
               Navigator.pop(context);
