@@ -8,3 +8,12 @@ abstract class FacturaEvent extends Equatable {
 }
 
 class GetFacturasEvent extends FacturaEvent {}
+
+class CreateFacturaEvent extends FacturaEvent {
+  final Factura factura;
+
+  const CreateFacturaEvent(this.factura);
+
+  @override
+  List<Object> get props => [factura];
+}

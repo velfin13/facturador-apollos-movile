@@ -25,7 +25,7 @@ class FacturaListWidget extends StatelessWidget {
               child: const Icon(Icons.receipt, color: Colors.white),
             ),
             title: Text(
-              factura.clienteNombre ?? 'Cliente sin nombre',
+              '${factura.numFact ?? 'N/A'} - ${factura.clienteNombre ?? factura.clienteId}',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: Text(
@@ -49,23 +49,31 @@ class FacturaListWidget extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Factura #${factura.id}'),
+        title: Text('Factura ${factura.numFact ?? factura.id}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Cliente: ${factura.clienteNombre}'),
+            Text('Cliente: ${factura.clienteNombre ?? factura.clienteId}'),
             Text('Fecha: ${DateFormat('dd/MM/yyyy').format(factura.fecha)}'),
+            if (factura.observacion != null && factura.observacion!.isNotEmpty)
+              Text('Observación: ${factura.observacion}'),
             const SizedBox(height: 16),
             const Text('Items:', style: TextStyle(fontWeight: FontWeight.bold)),
-            ...factura.items.map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(left: 8, top: 4),
-                child: Text(
-                  '• ${item.productoNombre ?? item.productoId} x${item.cantidad.toInt()} = \$${item.subtotal.toStringAsFixed(2)}',
+            if (factura.items.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(left: 8, top: 4),
+                child: Text('No hay detalles disponibles'),
+              )
+            else
+              ...factura.items.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(left: 8, top: 4),
+                  child: Text(
+                    '• ${item.productoNombre ?? item.productoId} x${item.cantidad.toInt()} = \$${item.subtotal.toStringAsFixed(2)}',
+                  ),
                 ),
               ),
-            ),
             const Divider(),
             Text(
               'Total: \$${factura.total.toStringAsFixed(2)}',

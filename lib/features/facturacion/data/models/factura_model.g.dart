@@ -26,11 +26,11 @@ FacturaModel _$FacturaModelFromJson(Map<String, dynamic> json) => FacturaModel(
 
 Map<String, dynamic> _$FacturaModelToJson(FacturaModel instance) =>
     <String, dynamic>{
-      'tipo': instance.tipo,
+      'tipo': ?instance.tipo,
       'fecha': instance.fecha.toIso8601String(),
-      'clienteNombre': instance.clienteNombre,
-      'numFact': instance.numFact,
-      'observacion': instance.observacion,
+      'clienteNombre': ?instance.clienteNombre,
+      'numFact': ?instance.numFact,
+      'observacion': ?instance.observacion,
       'total': instance.total,
       'idSysFcCabVenta': instance.idSysFcCabVenta,
       'idSysPeriodo': instance.idSysPeriodo,
@@ -51,11 +51,11 @@ ItemFacturaModel _$ItemFacturaModelFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$ItemFacturaModelToJson(ItemFacturaModel instance) =>
     <String, dynamic>{
-      'productoNombre': instance.productoNombre,
+      'productoNombre': ?instance.productoNombre,
       'cantidad': instance.cantidad,
       'valor': instance.valor,
-      'descuentoPorcentaje': instance.descuentoPorcentaje,
-      'bodegaId': instance.bodegaId,
+      'descuentoPorcentaje': ?instance.descuentoPorcentaje,
+      'bodegaId': ?instance.bodegaId,
       'idSysInProducto': instance.idSysInProducto,
     };
 
@@ -73,10 +73,10 @@ FormaPagoModel _$FormaPagoModelFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$FormaPagoModelToJson(FormaPagoModel instance) =>
     <String, dynamic>{
-      'formaPagoNombre': instance.formaPagoNombre,
+      'formaPagoNombre': ?instance.formaPagoNombre,
       'valor': instance.valor,
-      'numero': instance.numero,
-      'referencia': instance.referencia,
-      'fechaVence': instance.fechaVence?.toIso8601String(),
+      'numero': ?instance.numero,
+      'referencia': ?instance.referencia,
+      'fechaVence': ?instance.fechaVence?.toIso8601String(),
       'idSysFcFormaPago': instance.idSysFcFormaPago,
     };

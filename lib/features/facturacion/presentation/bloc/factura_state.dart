@@ -28,3 +28,14 @@ class FacturaError extends FacturaState {
   @override
   List<Object> get props => [message];
 }
+
+class FacturaCreating extends FacturaState {}
+
+class FacturaCreated extends FacturaState {
+  final Factura factura;
+
+  const FacturaCreated(this.factura);
+
+  @override
+  List<Object> get props => [factura];
+}

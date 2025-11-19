@@ -3,7 +3,7 @@ import '../../domain/entities/factura.dart';
 
 part 'factura_model.g.dart';
 
-@JsonSerializable(explicitToJson: true)
+@JsonSerializable(explicitToJson: true, includeIfNull: false)
 class FacturaModel extends Factura {
   @JsonKey(name: 'idSysFcCabVenta')
   final String idSysFcCabVenta;
@@ -63,7 +63,7 @@ class FacturaModel extends Factura {
       tipo: json['tipo'] as String?,
       fecha: DateTime.parse(json['fecha'] as String),
       idSysFcCliente: json['idSysFcCliente'] as String,
-      clienteNombre: json['clienteNombre'] as String?,
+      clienteNombre: json['nombreCliente'] as String?,
       numFact: json['numFact'] as String?,
       observacion: json['observacion'] as String?,
       total: (json['total'] as num).toDouble(),
@@ -95,7 +95,7 @@ class FacturaModel extends Factura {
   }
 }
 
-@JsonSerializable()
+@JsonSerializable(includeIfNull: false)
 class ItemFacturaModel extends ItemFactura {
   @JsonKey(name: 'idSysInProducto')
   final String idSysInProducto;
@@ -126,7 +126,7 @@ class ItemFacturaModel extends ItemFactura {
   }
 }
 
-@JsonSerializable()
+@JsonSerializable(includeIfNull: false)
 class FormaPagoModel extends FormaPago {
   @JsonKey(name: 'idSysFcFormaPago')
   final String idSysFcFormaPago;
