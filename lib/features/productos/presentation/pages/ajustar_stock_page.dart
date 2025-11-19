@@ -18,7 +18,7 @@ class _AjustarStockPageState extends State<AjustarStockPage> {
   final _formKey = GlobalKey<FormState>();
   final _cantidadController = TextEditingController();
   final _motivoController = TextEditingController();
-  
+
   String _tipoAjuste = 'ENTRADA';
   bool _isLoading = false;
   String? _bodegaSeleccionada;
@@ -29,7 +29,9 @@ class _AjustarStockPageState extends State<AjustarStockPage> {
   void initState() {
     super.initState();
     _cargarBodegas();
-  }  @override
+  }
+
+  @override
   void dispose() {
     _cantidadController.dispose();
     _motivoController.dispose();
@@ -40,7 +42,7 @@ class _AjustarStockPageState extends State<AjustarStockPage> {
     try {
       final dioClient = getIt<DioClient>();
       final periodoManager = getIt<PeriodoManager>();
-      
+
       final response = await dioClient.get(
         '/Inventario/bodegas',
         queryParameters: {'periodo': periodoManager.periodoActual},
@@ -372,7 +374,12 @@ class _AjustarStockPageState extends State<AjustarStockPage> {
 
             // Botones
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: 16 + MediaQuery.of(context).padding.bottom,
+              ),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
                 boxShadow: [
@@ -443,7 +450,8 @@ class _AjustarStockPageState extends State<AjustarStockPage> {
           data: {
             'idSysPeriodo': periodoManager.periodoActual,
             'idSysInProducto': widget.producto.id,
-            'idSysInBodega': _bodegaSeleccionada, // Bodega seleccionada dinámicamente
+            'idSysInBodega':
+                _bodegaSeleccionada, // Bodega seleccionada dinámicamente
             'cantidadAjuste': cantidad.toDouble(),
             'tipoAjuste': _tipoAjuste,
             'motivo': _motivoController.text.trim(),
