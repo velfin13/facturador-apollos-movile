@@ -1,8 +1,15 @@
+import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
+import '../../../../core/network/dio_client.dart';
+import '../../../../core/network/periodo_manager.dart';
+import '../../../../core/network/api_exceptions.dart';
 import '../models/producto_model.dart';
 
 abstract class ProductoRemoteDataSource {
-  Future<List<ProductoModel>> getProductos();
+  Future<List<ProductoModel>> getProductos({
+    String? filtro,
+    bool soloActivos = true,
+  });
   Future<ProductoModel> getProducto(String id);
   Future<ProductoModel> createProducto(ProductoModel producto);
   Future<ProductoModel> updateProducto(ProductoModel producto);
@@ -11,89 +18,135 @@ abstract class ProductoRemoteDataSource {
 
 @LazySingleton(as: ProductoRemoteDataSource)
 class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
+  final DioClient _dioClient;
+  final PeriodoManager _periodoManager;
+
+  ProductoRemoteDataSourceImpl(this._dioClient, this._periodoManager);
+
   @override
-  Future<List<ProductoModel>> getProductos() async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    return [
-      ProductoModel(
-        id: '1',
-        codigo: 'PROD001',
-        nombre: 'Laptop Dell',
-        descripcion: 'Laptop Dell Inspiron 15, 8GB RAM, 256GB SSD',
-        precio: 850.00,
-        costo: 600.00,
-        stock: 15,
-        categoria: 'Electrónica',
-        fechaCreacion: DateTime.now().subtract(const Duration(days: 90)),
-      ),
-      ProductoModel(
-        id: '2',
-        codigo: 'PROD002',
-        nombre: 'Mouse Logitech',
-        descripcion: 'Mouse inalámbrico Logitech M185',
-        precio: 25.00,
-        costo: 15.00,
-        stock: 50,
-        categoria: 'Accesorios',
-        fechaCreacion: DateTime.now().subtract(const Duration(days: 60)),
-      ),
-      ProductoModel(
-        id: '3',
-        codigo: 'PROD003',
-        nombre: 'Teclado Mecánico',
-        descripcion: 'Teclado mecánico RGB para gaming',
-        precio: 120.00,
-        costo: 80.00,
-        stock: 25,
-        categoria: 'Accesorios',
-        fechaCreacion: DateTime.now().subtract(const Duration(days: 45)),
-      ),
-      ProductoModel(
-        id: '4',
-        codigo: 'PROD004',
-        nombre: 'Monitor LG 24"',
-        descripcion: 'Monitor LG 24" Full HD IPS',
-        precio: 280.00,
-        costo: 200.00,
-        stock: 10,
-        categoria: 'Electrónica',
-        fechaCreacion: DateTime.now().subtract(const Duration(days: 30)),
-      ),
-      ProductoModel(
-        id: '5',
-        codigo: 'PROD005',
-        nombre: 'Webcam HD',
-        descripcion: 'Webcam HD 1080p',
-        precio: 45.00,
-        costo: 30.00,
-        stock: 0,
-        categoria: 'Accesorios',
-        fechaCreacion: DateTime.now().subtract(const Duration(days: 15)),
-      ),
-    ];
+  Future<List<ProductoModel>> getProductos({
+    String? filtro,
+    bool soloActivos = true,
+  }) async {
+    try {
+      final response = await _dioClient.get(
+        '/Productos',
+        queryParameters: {
+          'periodo': _periodoManager.periodoActual,
+          if (filtro != null && filtro.isNotEmpty) 'filtro': filtro,
+          'soloActivos': soloActivos,
+        },
+      );
+
+      // La API devuelve: {success, message, data, errors}
+      if (response.data is Map && response.data['data'] != null) {
+        final data = response.data['data'];
+        if (data is List) {
+          return data
+              .map(
+                (json) => ProductoModel.fromJson(json as Map<String, dynamic>),
+              )
+              .toList();
+        }
+      }
+      return [];
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
   }
 
   @override
   Future<ProductoModel> getProducto(String id) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    final productos = await getProductos();
-    return productos.firstWhere((p) => p.id == id);
+    try {
+      final response = await _dioClient.get(
+        '/Productos/${_periodoManager.periodoActual}/$id',
+      );
+
+      // La API devuelve: {success, message, data, errors}
+      if (response.data is Map && response.data['data'] != null) {
+        return ProductoModel.fromJson(
+          response.data['data'] as Map<String, dynamic>,
+        );
+      }
+      throw ApiException('Error al obtener producto');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
   }
 
   @override
   Future<ProductoModel> createProducto(ProductoModel producto) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    return producto;
+    try {
+      final data = {
+        'idSysInProducto': producto.id,
+        'idSysPeriodo': _periodoManager.periodoActual,
+        'descripcion': producto.descripcion,
+        'idSysInMedida': producto.medida,
+        'costo': producto.costo,
+        'iva': producto.iva,
+        'precio1': producto.precio1,
+        'precio2': producto.precio2,
+        'precio3': producto.precio3,
+        'barra': producto.barra,
+        'activo': producto.activo ? 'S' : 'N',
+      };
+
+      final response = await _dioClient.post('/Productos', data: data);
+
+      // La API devuelve: {success, message, data, errors}
+      if (response.data is Map && response.data['data'] != null) {
+        return ProductoModel.fromJson(
+          response.data['data'] as Map<String, dynamic>,
+        );
+      }
+      throw ApiException('Error al crear producto');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
   }
 
   @override
   Future<ProductoModel> updateProducto(ProductoModel producto) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    return producto;
+    try {
+      final data = {
+        'idSysInProducto': producto.id,
+        'idSysPeriodo': producto.periodo,
+        'descripcion': producto.descripcion,
+        'idSysInMedida': producto.medida,
+        'costo': producto.costo,
+        'iva': producto.iva,
+        'precio1': producto.precio1,
+        'precio2': producto.precio2,
+        'precio3': producto.precio3,
+        'barra': producto.barra,
+        'activo': producto.activo ? 'S' : 'N',
+      };
+
+      final response = await _dioClient.put(
+        '/Productos/${producto.periodo}/${producto.id}',
+        data: data,
+      );
+
+      // La API devuelve: {success, message, data, errors}
+      if (response.data is Map && response.data['data'] != null) {
+        return ProductoModel.fromJson(
+          response.data['data'] as Map<String, dynamic>,
+        );
+      }
+      throw ApiException('Error al actualizar producto');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
   }
 
   @override
   Future<void> deleteProducto(String id) async {
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      await _dioClient.delete(
+        '/Productos/${_periodoManager.periodoActual}/$id',
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
   }
 }

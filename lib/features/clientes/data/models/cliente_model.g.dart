@@ -7,26 +7,28 @@ part of 'cliente_model.dart';
 // **************************************************************************
 
 ClienteModel _$ClienteModelFromJson(Map<String, dynamic> json) => ClienteModel(
-  id: json['id'] as String,
+  idSysFcCliente: json['idSysFcCliente'] as String,
+  idSysPeriodo: json['idSysPeriodo'] as String,
   nombre: json['nombre'] as String,
-  razonSocial: json['razonSocial'] as String?,
-  identificacion: json['identificacion'] as String,
-  email: json['email'] as String?,
-  telefono: json['telefono'] as String?,
   direccion: json['direccion'] as String?,
+  telefono: json['telefono'] as String?,
+  ruc: json['ruc'] as String,
   activo: json['activo'] as bool? ?? true,
-  fechaCreacion: DateTime.parse(json['fechaCreacion'] as String),
+  ciudad: json['ciudad'] as String?,
+  email: json['email'] as String?,
+  tipo: json['tipo'] as String?,
 );
 
 Map<String, dynamic> _$ClienteModelToJson(ClienteModel instance) =>
     <String, dynamic>{
-      'id': instance.id,
       'nombre': instance.nombre,
-      'razonSocial': instance.razonSocial,
-      'identificacion': instance.identificacion,
-      'email': instance.email,
-      'telefono': instance.telefono,
       'direccion': instance.direccion,
+      'telefono': instance.telefono,
+      'ruc': instance.ruc,
       'activo': instance.activo,
-      'fechaCreacion': instance.fechaCreacion.toIso8601String(),
+      'ciudad': instance.ciudad,
+      'email': instance.email,
+      'tipo': instance.tipo,
+      'idSysFcCliente': instance.idSysFcCliente,
+      'idSysPeriodo': instance.idSysPeriodo,
     };

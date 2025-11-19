@@ -25,7 +25,7 @@ class FacturaListWidget extends StatelessWidget {
               child: const Icon(Icons.receipt, color: Colors.white),
             ),
             title: Text(
-              factura.clienteNombre,
+              factura.clienteNombre ?? 'Cliente sin nombre',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: Text(
@@ -62,7 +62,7 @@ class FacturaListWidget extends StatelessWidget {
               (item) => Padding(
                 padding: const EdgeInsets.only(left: 8, top: 4),
                 child: Text(
-                  '• ${item.descripcion} x${item.cantidad} = \$${item.subtotal.toStringAsFixed(2)}',
+                  '• ${item.productoNombre ?? item.productoId} x${item.cantidad.toInt()} = \$${item.subtotal.toStringAsFixed(2)}',
                 ),
               ),
             ),

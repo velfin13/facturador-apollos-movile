@@ -1,38 +1,41 @@
 import 'package:equatable/equatable.dart';
 
 class Cliente extends Equatable {
-  final String id;
+  final String id; // idSysFcCliente
+  final String periodo; // idSysPeriodo
   final String nombre;
-  final String? razonSocial;
-  final String identificacion; // RUC, CI, etc.
-  final String? email;
-  final String? telefono;
   final String? direccion;
+  final String? telefono;
+  final String ruc; // identificación
   final bool activo;
-  final DateTime fechaCreacion;
+  final String? ciudad;
+  final String? email;
+  final String? tipo; // tipo de cliente
 
   const Cliente({
     required this.id,
+    required this.periodo,
     required this.nombre,
-    this.razonSocial,
-    required this.identificacion,
-    this.email,
-    this.telefono,
     this.direccion,
+    this.telefono,
+    required this.ruc,
     this.activo = true,
-    required this.fechaCreacion,
+    this.ciudad,
+    this.email,
+    this.tipo,
   });
 
   @override
   List<Object?> get props => [
     id,
+    periodo,
     nombre,
-    razonSocial,
-    identificacion,
-    email,
-    telefono,
     direccion,
+    telefono,
+    ruc,
     activo,
-    fechaCreacion,
+    ciudad,
+    email,
+    tipo,
   ];
 }

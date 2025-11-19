@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../domain/entities/cliente.dart';
 
 class ClienteListWidget extends StatelessWidget {
@@ -31,7 +30,7 @@ class ClienteListWidget extends StatelessWidget {
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('RUC/CI: ${cliente.identificacion}'),
+                Text('RUC/CI: ${cliente.ruc}'),
                 if (cliente.email != null) Text('Email: ${cliente.email}'),
               ],
             ),
@@ -56,18 +55,13 @@ class ClienteListWidget extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (cliente.razonSocial != null)
-              Text('Razón Social: ${cliente.razonSocial}'),
-            Text('Identificación: ${cliente.identificacion}'),
+            Text('RUC: ${cliente.ruc}'),
             if (cliente.email != null) Text('Email: ${cliente.email}'),
             if (cliente.telefono != null) Text('Teléfono: ${cliente.telefono}'),
             if (cliente.direccion != null)
               Text('Dirección: ${cliente.direccion}'),
+            if (cliente.ciudad != null) Text('Ciudad: ${cliente.ciudad}'),
             const SizedBox(height: 8),
-            Text(
-              'Fecha de creación: ${DateFormat('dd/MM/yyyy').format(cliente.fechaCreacion)}',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
             Text(
               'Estado: ${cliente.activo ? "Activo" : "Inactivo"}',
               style: TextStyle(

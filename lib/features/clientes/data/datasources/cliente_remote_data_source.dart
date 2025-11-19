@@ -1,8 +1,12 @@
+import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
+import '../../../../core/network/dio_client.dart';
+import '../../../../core/network/periodo_manager.dart';
+import '../../../../core/network/api_exceptions.dart';
 import '../models/cliente_model.dart';
 
 abstract class ClienteRemoteDataSource {
-  Future<List<ClienteModel>> getClientes();
+  Future<List<ClienteModel>> getClientes({String? filtro});
   Future<ClienteModel> getCliente(String id);
   Future<ClienteModel> createCliente(ClienteModel cliente);
   Future<ClienteModel> updateCliente(ClienteModel cliente);
@@ -11,70 +15,122 @@ abstract class ClienteRemoteDataSource {
 
 @LazySingleton(as: ClienteRemoteDataSource)
 class ClienteRemoteDataSourceImpl implements ClienteRemoteDataSource {
-  // Lista en memoria para simular base de datos
-  final List<ClienteModel> _clientes = [
-    ClienteModel(
-      id: '1',
-      nombre: 'Juan Pérez',
-      razonSocial: 'Pérez Comercio',
-      identificacion: '1234567890001',
-      email: 'juan@example.com',
-      telefono: '0991234567',
-      direccion: 'Av. Principal 123',
-      fechaCreacion: DateTime.now().subtract(const Duration(days: 30)),
-    ),
-    ClienteModel(
-      id: '2',
-      nombre: 'María González',
-      identificacion: '9876543210001',
-      email: 'maria@example.com',
-      telefono: '0987654321',
-      fechaCreacion: DateTime.now().subtract(const Duration(days: 15)),
-    ),
-    ClienteModel(
-      id: '3',
-      nombre: 'Empresa XYZ S.A.',
-      razonSocial: 'XYZ Compañía Anónima',
-      identificacion: '1234567890002',
-      email: 'contacto@xyz.com',
-      telefono: '022345678',
-      direccion: 'Edificio Central, Piso 5',
-      fechaCreacion: DateTime.now().subtract(const Duration(days: 60)),
-    ),
-  ];
+  final DioClient _dioClient;
+  final PeriodoManager _periodoManager;
+
+  ClienteRemoteDataSourceImpl(this._dioClient, this._periodoManager);
 
   @override
-  Future<List<ClienteModel>> getClientes() async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    return List.from(_clientes);
+  Future<List<ClienteModel>> getClientes({String? filtro}) async {
+    try {
+      final response = await _dioClient.get(
+        '/Clientes',
+        queryParameters: {
+          'periodo': _periodoManager.periodoActual,
+          if (filtro != null && filtro.isNotEmpty) 'filtro': filtro,
+        },
+      );
+
+      // La API devuelve: {success, message, data, errors}
+      if (response.data is Map && response.data['data'] is List) {
+        return (response.data['data'] as List)
+            .map((json) => ClienteModel.fromJson(json as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
   }
 
   @override
   Future<ClienteModel> getCliente(String id) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return _clientes.firstWhere((c) => c.id == id);
+    try {
+      final response = await _dioClient.get(
+        '/Clientes/${_periodoManager.periodoActual}/$id',
+      );
+
+      // La API devuelve: {success, message, data, errors}
+      if (response.data is Map && response.data['data'] != null) {
+        return ClienteModel.fromJson(
+          response.data['data'] as Map<String, dynamic>,
+        );
+      }
+      throw ApiException('No se encontró el cliente');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
   }
 
   @override
   Future<ClienteModel> createCliente(ClienteModel cliente) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    _clientes.add(cliente);
-    return cliente;
+    try {
+      final data = {
+        'idSysFcCliente': cliente.id,
+        'idSysPeriodo': cliente.periodo,
+        'nombre': cliente.nombre,
+        'direccion': cliente.direccion,
+        'telefono': cliente.telefono,
+        'ruc': cliente.ruc,
+        'activo': cliente.activo ? 'S' : 'N',
+        'ciudad': cliente.ciudad,
+        'eMail': cliente.email,
+        'tipo': cliente.tipo,
+      };
+
+      final response = await _dioClient.post('/Clientes', data: data);
+
+      // La API devuelve: {success, message, data, errors}
+      if (response.data is Map && response.data['data'] != null) {
+        return ClienteModel.fromJson(
+          response.data['data'] as Map<String, dynamic>,
+        );
+      }
+      throw ApiException('Error al crear cliente');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
   }
 
   @override
   Future<ClienteModel> updateCliente(ClienteModel cliente) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-    final index = _clientes.indexWhere((c) => c.id == cliente.id);
-    if (index != -1) {
-      _clientes[index] = cliente;
+    try {
+      final data = {
+        'idSysFcCliente': cliente.id,
+        'idSysPeriodo': cliente.periodo,
+        'nombre': cliente.nombre,
+        'direccion': cliente.direccion,
+        'telefono': cliente.telefono,
+        'ruc': cliente.ruc,
+        'activo': cliente.activo ? 'S' : 'N',
+        'ciudad': cliente.ciudad,
+        'eMail': cliente.email,
+        'tipo': cliente.tipo,
+      };
+
+      final response = await _dioClient.put(
+        '/Clientes/${cliente.periodo}/${cliente.id}',
+        data: data,
+      );
+
+      // La API devuelve: {success, message, data, errors}
+      if (response.data is Map && response.data['data'] != null) {
+        return ClienteModel.fromJson(
+          response.data['data'] as Map<String, dynamic>,
+        );
+      }
+      throw ApiException('Error al actualizar cliente');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
     }
-    return cliente;
   }
 
   @override
   Future<void> deleteCliente(String id) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    _clientes.removeWhere((c) => c.id == id);
+    try {
+      await _dioClient.delete('/Clientes/${_periodoManager.periodoActual}/$id');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
   }
 }

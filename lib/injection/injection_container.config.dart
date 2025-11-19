@@ -9,142 +9,155 @@
 // coverage:ignore-file
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
-import 'package:facturador/features/auth/data/datasources/auth_data_source.dart'
-    as _i804;
-import 'package:facturador/features/auth/data/repositories/auth_repository_impl.dart'
-    as _i514;
-import 'package:facturador/features/auth/domain/repositories/auth_repository.dart'
-    as _i109;
-import 'package:facturador/features/auth/domain/usecases/get_current_user.dart'
-    as _i942;
-import 'package:facturador/features/auth/domain/usecases/login.dart' as _i610;
-import 'package:facturador/features/auth/domain/usecases/logout.dart' as _i393;
-import 'package:facturador/features/auth/presentation/bloc/auth_bloc.dart'
-    as _i1000;
-import 'package:facturador/features/clientes/data/datasources/cliente_remote_data_source.dart'
-    as _i834;
-import 'package:facturador/features/clientes/data/repositories/cliente_repository_impl.dart'
-    as _i633;
-import 'package:facturador/features/clientes/domain/repositories/cliente_repository.dart'
-    as _i340;
-import 'package:facturador/features/clientes/domain/usecases/create_cliente.dart'
-    as _i1046;
-import 'package:facturador/features/clientes/domain/usecases/get_clientes.dart'
-    as _i244;
-import 'package:facturador/features/clientes/presentation/bloc/cliente_bloc.dart'
-    as _i396;
-import 'package:facturador/features/facturacion/data/datasources/factura_local_data_source.dart'
-    as _i220;
-import 'package:facturador/features/facturacion/data/datasources/factura_remote_data_source.dart'
-    as _i605;
-import 'package:facturador/features/facturacion/data/repositories/factura_repository_impl.dart'
-    as _i231;
-import 'package:facturador/features/facturacion/domain/repositories/factura_repository.dart'
-    as _i931;
-import 'package:facturador/features/facturacion/domain/usecases/get_facturas.dart'
-    as _i413;
-import 'package:facturador/features/facturacion/presentation/bloc/factura_bloc.dart'
-    as _i206;
-import 'package:facturador/features/productos/data/datasources/producto_remote_data_source.dart'
-    as _i554;
-import 'package:facturador/features/productos/data/repositories/producto_repository_impl.dart'
-    as _i999;
-import 'package:facturador/features/productos/domain/repositories/producto_repository.dart'
-    as _i925;
-import 'package:facturador/features/productos/domain/usecases/get_productos.dart'
-    as _i660;
-import 'package:facturador/features/productos/presentation/bloc/producto_bloc.dart'
-    as _i209;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:injectable/injectable.dart' as _i526;
+import 'package:shared_preferences/shared_preferences.dart' as _i460;
+
+import '../core/network/dio_client.dart' as _i393;
+import '../core/network/periodo_manager.dart' as _i744;
+import '../features/auth/data/datasources/auth_data_source.dart' as _i489;
+import '../features/auth/data/repositories/auth_repository_impl.dart' as _i570;
+import '../features/auth/domain/repositories/auth_repository.dart' as _i869;
+import '../features/auth/domain/usecases/get_current_user.dart' as _i318;
+import '../features/auth/domain/usecases/login.dart' as _i625;
+import '../features/auth/domain/usecases/logout.dart' as _i338;
+import '../features/auth/presentation/bloc/auth_bloc.dart' as _i59;
+import '../features/clientes/data/datasources/cliente_remote_data_source.dart'
+    as _i478;
+import '../features/clientes/data/repositories/cliente_repository_impl.dart'
+    as _i629;
+import '../features/clientes/domain/repositories/cliente_repository.dart'
+    as _i135;
+import '../features/clientes/domain/usecases/create_cliente.dart' as _i799;
+import '../features/clientes/domain/usecases/get_clientes.dart' as _i943;
+import '../features/clientes/presentation/bloc/cliente_bloc.dart' as _i454;
+import '../features/facturacion/data/datasources/factura_local_data_source.dart'
+    as _i865;
+import '../features/facturacion/data/datasources/factura_remote_data_source.dart'
+    as _i264;
+import '../features/facturacion/data/repositories/factura_repository_impl.dart'
+    as _i282;
+import '../features/facturacion/domain/repositories/factura_repository.dart'
+    as _i757;
+import '../features/facturacion/domain/usecases/get_facturas.dart' as _i92;
+import '../features/facturacion/presentation/bloc/factura_bloc.dart' as _i246;
+import '../features/productos/data/datasources/producto_remote_data_source.dart'
+    as _i960;
+import '../features/productos/data/repositories/producto_repository_impl.dart'
+    as _i79;
+import '../features/productos/domain/repositories/producto_repository.dart'
+    as _i797;
+import '../features/productos/domain/usecases/get_productos.dart' as _i223;
+import '../features/productos/presentation/bloc/producto_bloc.dart' as _i829;
+import 'register_module.dart' as _i291;
 
 extension GetItInjectableX on _i174.GetIt {
   // initializes the registration of main-scope dependencies inside of GetIt
-  _i174.GetIt init({
+  Future<_i174.GetIt> init({
     String? environment,
     _i526.EnvironmentFilter? environmentFilter,
-  }) {
+  }) async {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
-    gh.lazySingleton<_i220.FacturaLocalDataSource>(
-      () => _i220.FacturaLocalDataSourceImpl(),
+    final registerModule = _$RegisterModule();
+    await gh.factoryAsync<_i460.SharedPreferences>(
+      () => registerModule.prefs,
+      preResolve: true,
     );
-    gh.lazySingleton<_i804.AuthRemoteDataSource>(
-      () => _i804.AuthRemoteDataSourceImpl(),
+    gh.lazySingleton<_i393.DioClient>(() => _i393.DioClient());
+    gh.lazySingleton<_i865.FacturaLocalDataSource>(
+      () => _i865.FacturaLocalDataSourceImpl(),
     );
-    gh.lazySingleton<_i554.ProductoRemoteDataSource>(
-      () => _i554.ProductoRemoteDataSourceImpl(),
+    gh.lazySingleton<_i489.AuthRemoteDataSource>(
+      () => _i489.AuthRemoteDataSourceImpl(),
     );
-    gh.lazySingleton<_i605.FacturaRemoteDataSource>(
-      () => _i605.FacturaRemoteDataSourceImpl(),
+    gh.lazySingleton<_i744.PeriodoManager>(
+      () => _i744.PeriodoManager(gh<_i460.SharedPreferences>()),
     );
-    gh.lazySingleton<_i834.ClienteRemoteDataSource>(
-      () => _i834.ClienteRemoteDataSourceImpl(),
+    gh.lazySingleton<_i489.AuthLocalDataSource>(
+      () => _i489.AuthLocalDataSourceImpl(),
     );
-    gh.lazySingleton<_i804.AuthLocalDataSource>(
-      () => _i804.AuthLocalDataSourceImpl(),
-    );
-    gh.lazySingleton<_i340.ClienteRepository>(
-      () => _i633.ClienteRepositoryImpl(
-        remoteDataSource: gh<_i834.ClienteRemoteDataSource>(),
+    gh.lazySingleton<_i478.ClienteRemoteDataSource>(
+      () => _i478.ClienteRemoteDataSourceImpl(
+        gh<_i393.DioClient>(),
+        gh<_i744.PeriodoManager>(),
       ),
     );
-    gh.lazySingleton<_i925.ProductoRepository>(
-      () => _i999.ProductoRepositoryImpl(
-        remoteDataSource: gh<_i554.ProductoRemoteDataSource>(),
+    gh.lazySingleton<_i264.FacturaRemoteDataSource>(
+      () => _i264.FacturaRemoteDataSourceImpl(
+        gh<_i393.DioClient>(),
+        gh<_i744.PeriodoManager>(),
       ),
     );
-    gh.lazySingleton<_i1046.CreateCliente>(
-      () => _i1046.CreateCliente(gh<_i340.ClienteRepository>()),
-    );
-    gh.lazySingleton<_i244.GetClientes>(
-      () => _i244.GetClientes(gh<_i340.ClienteRepository>()),
-    );
-    gh.lazySingleton<_i660.GetProductos>(
-      () => _i660.GetProductos(gh<_i925.ProductoRepository>()),
-    );
-    gh.lazySingleton<_i109.AuthRepository>(
-      () => _i514.AuthRepositoryImpl(
-        remoteDataSource: gh<_i804.AuthRemoteDataSource>(),
-        localDataSource: gh<_i804.AuthLocalDataSource>(),
+    gh.lazySingleton<_i960.ProductoRemoteDataSource>(
+      () => _i960.ProductoRemoteDataSourceImpl(
+        gh<_i393.DioClient>(),
+        gh<_i744.PeriodoManager>(),
       ),
     );
-    gh.lazySingleton<_i931.FacturaRepository>(
-      () => _i231.FacturaRepositoryImpl(
-        remoteDataSource: gh<_i605.FacturaRemoteDataSource>(),
-        localDataSource: gh<_i220.FacturaLocalDataSource>(),
+    gh.lazySingleton<_i869.AuthRepository>(
+      () => _i570.AuthRepositoryImpl(
+        remoteDataSource: gh<_i489.AuthRemoteDataSource>(),
+        localDataSource: gh<_i489.AuthLocalDataSource>(),
       ),
     );
-    gh.factory<_i396.ClienteBloc>(
-      () => _i396.ClienteBloc(
-        getClientes: gh<_i244.GetClientes>(),
-        createCliente: gh<_i1046.CreateCliente>(),
+    gh.lazySingleton<_i757.FacturaRepository>(
+      () => _i282.FacturaRepositoryImpl(
+        remoteDataSource: gh<_i264.FacturaRemoteDataSource>(),
+        localDataSource: gh<_i865.FacturaLocalDataSource>(),
       ),
     );
-    gh.factory<_i209.ProductoBloc>(
-      () => _i209.ProductoBloc(getProductos: gh<_i660.GetProductos>()),
+    gh.lazySingleton<_i135.ClienteRepository>(
+      () => _i629.ClienteRepositoryImpl(
+        remoteDataSource: gh<_i478.ClienteRemoteDataSource>(),
+      ),
     );
-    gh.lazySingleton<_i413.GetFacturas>(
-      () => _i413.GetFacturas(gh<_i931.FacturaRepository>()),
+    gh.lazySingleton<_i797.ProductoRepository>(
+      () => _i79.ProductoRepositoryImpl(
+        remoteDataSource: gh<_i960.ProductoRemoteDataSource>(),
+      ),
     );
-    gh.lazySingleton<_i942.GetCurrentUser>(
-      () => _i942.GetCurrentUser(gh<_i109.AuthRepository>()),
+    gh.lazySingleton<_i799.CreateCliente>(
+      () => _i799.CreateCliente(gh<_i135.ClienteRepository>()),
     );
-    gh.lazySingleton<_i610.Login>(
-      () => _i610.Login(gh<_i109.AuthRepository>()),
+    gh.lazySingleton<_i943.GetClientes>(
+      () => _i943.GetClientes(gh<_i135.ClienteRepository>()),
     );
-    gh.lazySingleton<_i393.Logout>(
-      () => _i393.Logout(gh<_i109.AuthRepository>()),
+    gh.lazySingleton<_i223.GetProductos>(
+      () => _i223.GetProductos(gh<_i797.ProductoRepository>()),
     );
-    gh.factory<_i206.FacturaBloc>(
-      () => _i206.FacturaBloc(getFacturas: gh<_i413.GetFacturas>()),
+    gh.lazySingleton<_i92.GetFacturas>(
+      () => _i92.GetFacturas(gh<_i757.FacturaRepository>()),
     );
-    gh.factory<_i1000.AuthBloc>(
-      () => _i1000.AuthBloc(
-        loginUseCase: gh<_i610.Login>(),
-        logoutUseCase: gh<_i393.Logout>(),
-        getCurrentUser: gh<_i942.GetCurrentUser>(),
+    gh.lazySingleton<_i318.GetCurrentUser>(
+      () => _i318.GetCurrentUser(gh<_i869.AuthRepository>()),
+    );
+    gh.lazySingleton<_i625.Login>(
+      () => _i625.Login(gh<_i869.AuthRepository>()),
+    );
+    gh.lazySingleton<_i338.Logout>(
+      () => _i338.Logout(gh<_i869.AuthRepository>()),
+    );
+    gh.factory<_i246.FacturaBloc>(
+      () => _i246.FacturaBloc(getFacturas: gh<_i92.GetFacturas>()),
+    );
+    gh.factory<_i454.ClienteBloc>(
+      () => _i454.ClienteBloc(
+        getClientes: gh<_i943.GetClientes>(),
+        createCliente: gh<_i799.CreateCliente>(),
+      ),
+    );
+    gh.factory<_i829.ProductoBloc>(
+      () => _i829.ProductoBloc(getProductos: gh<_i223.GetProductos>()),
+    );
+    gh.factory<_i59.AuthBloc>(
+      () => _i59.AuthBloc(
+        loginUseCase: gh<_i625.Login>(),
+        logoutUseCase: gh<_i338.Logout>(),
+        getCurrentUser: gh<_i318.GetCurrentUser>(),
       ),
     );
     return this;
   }
 }
+
+class _$RegisterModule extends _i291.RegisterModule {}

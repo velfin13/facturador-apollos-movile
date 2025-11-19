@@ -1,29 +1,35 @@
 import 'package:equatable/equatable.dart';
 
 class Producto extends Equatable {
-  final String id;
-  final String codigo;
-  final String nombre;
-  final String? descripcion;
-  final double precio;
+  final String id; // idSysInProducto
+  final String periodo; // idSysPeriodo
+  final String descripcion; // descripcion (nombre del producto)
+  final String? medida; // idSysInMedida
   final double? costo;
-  final int stock;
-  final String? categoria;
+  final String? iva; // 'S' o 'N'
+  final double? precio1;
+  final double? precio2;
+  final double? precio3;
+  final String? barra; // código de barras
   final bool activo;
-  final DateTime fechaCreacion;
+  final int stock; // desde inventario
 
   const Producto({
     required this.id,
-    required this.codigo,
-    required this.nombre,
-    this.descripcion,
-    required this.precio,
+    required this.periodo,
+    required this.descripcion,
+    this.medida,
     this.costo,
-    this.stock = 0,
-    this.categoria,
+    this.iva,
+    this.precio1,
+    this.precio2,
+    this.precio3,
+    this.barra,
     this.activo = true,
-    required this.fechaCreacion,
+    this.stock = 0,
   });
+
+  double get precio => precio1 ?? 0.0;
 
   double get margen {
     if (costo == null || costo == 0) return 0;
@@ -32,17 +38,21 @@ class Producto extends Equatable {
 
   bool get disponible => activo && stock > 0;
 
+  bool get tieneIva => iva == 'S';
+
   @override
   List<Object?> get props => [
     id,
-    codigo,
-    nombre,
+    periodo,
     descripcion,
-    precio,
+    medida,
     costo,
-    stock,
-    categoria,
+    iva,
+    precio1,
+    precio2,
+    precio3,
+    barra,
     activo,
-    fechaCreacion,
+    stock,
   ];
 }

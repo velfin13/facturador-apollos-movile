@@ -44,7 +44,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     const UsuarioModel(
       id: '1',
       nombre: 'Admin Usuario',
-      email: 'admin',
+      email: 'admin@facturador.com',
       rol: UserRole.admin,
     ),
     const UsuarioModel(

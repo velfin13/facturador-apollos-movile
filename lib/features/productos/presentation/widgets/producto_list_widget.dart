@@ -26,16 +26,15 @@ class ProductoListWidget extends StatelessWidget {
               child: const Icon(Icons.inventory_2, color: Colors.white),
             ),
             title: Text(
-              producto.nombre,
+              producto.descripcion,
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Código: ${producto.codigo}'),
-                Text('Stock: ${producto.stock} unidades'),
-                if (producto.categoria != null)
-                  Text('Categoría: ${producto.categoria}'),
+                Text('Precio: \$${producto.precio.toStringAsFixed(2)}'),
+                if (producto.barra != null)
+                  Text('Código de barras: ${producto.barra}'),
               ],
             ),
             trailing: Column(
@@ -69,14 +68,13 @@ class ProductoListWidget extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(producto.nombre),
+        title: Text(producto.descripcion),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Código: ${producto.codigo}'),
-            if (producto.descripcion != null)
-              Text('Descripción: ${producto.descripcion}'),
+            if (producto.barra != null)
+              Text('Código de barras: ${producto.barra}'),
             const SizedBox(height: 8),
             Text('Precio: \$${producto.precio.toStringAsFixed(2)}'),
             if (producto.costo != null)
@@ -85,8 +83,7 @@ class ProductoListWidget extends StatelessWidget {
               Text('Margen: ${producto.margen.toStringAsFixed(1)}%'),
             const SizedBox(height: 8),
             Text('Stock: ${producto.stock} unidades'),
-            if (producto.categoria != null)
-              Text('Categoría: ${producto.categoria}'),
+            Text('IVA: ${producto.tieneIva ? "Sí" : "No"}'),
             const SizedBox(height: 8),
             Text(
               'Estado: ${producto.activo ? "Activo" : "Inactivo"}',

@@ -32,13 +32,15 @@ class _CrearClientePageState extends State<CrearClientePage> {
 
   void _guardarCliente() {
     if (_formKey.currentState!.validate()) {
+      // Generar ID en formato CLI-XXX
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final idNumero = (timestamp % 10000).toString().padLeft(4, '0');
+
       final cliente = Cliente(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: 'CLI-$idNumero',
+        periodo: DateTime.now().year.toString(),
         nombre: _nombreController.text.trim(),
-        razonSocial: _razonSocialController.text.trim().isEmpty
-            ? null
-            : _razonSocialController.text.trim(),
-        identificacion: _identificacionController.text.trim(),
+        ruc: _identificacionController.text.trim(),
         email: _emailController.text.trim().isEmpty
             ? null
             : _emailController.text.trim(),
@@ -48,8 +50,9 @@ class _CrearClientePageState extends State<CrearClientePage> {
         direccion: _direccionController.text.trim().isEmpty
             ? null
             : _direccionController.text.trim(),
+        ciudad: null,
+        tipo: '01', // Tipo por defecto: Cliente Natural
         activo: true,
-        fechaCreacion: DateTime.now(),
       );
 
       context.read<ClienteBloc>().add(CreateClienteEvent(cliente));
