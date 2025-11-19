@@ -24,11 +24,13 @@
 - ✅ Sistema de autenticación con roles
 - ✅ Gestión completa de clientes (CRUD)
 - ✅ Catálogo de productos con control de inventario
-- ✅ Generación de facturas con múltiples items
-- ✅ Visualización de historial de facturas
+- ✅ Gestión de inventario/stock por bodega (ENTRADA/SALIDA)
+- ✅ Generación de facturas con múltiples items y cálculo de IVA
+- ✅ Visualización de historial de facturas con detalles
+- ✅ Integración completa con API backend (.NET)
 - ✅ Arquitectura limpia y escalable
 - ✅ Manejo robusto de errores
-- 🚧 Integración con API backend (pendiente)
+- ✅ Responsive UI con padding dinámico (compatibilidad con navegación del sistema)
 - 🚧 Sincronización offline (pendiente)
 - 🚧 Reportes y estadísticas (pendiente)
 
@@ -77,6 +79,12 @@ El proyecto implementa **Clean Architecture** (Arquitectura Limpia) con tres cap
 
 - **dartz**: ^0.10.1 - Either para manejo de errores funcional
 
+### Networking
+
+- **dio**: ^5.7.0 - Cliente HTTP
+- **pretty_dio_logger**: ^1.4.0 - Logs de peticiones HTTP
+- **shared_preferences**: ^2.3.5 - Almacenamiento local de preferencias
+
 ### Inyección de Dependencias
 
 - **get_it**: ^9.0.5 - Service Locator
@@ -111,7 +119,11 @@ facturador/
 │   ├── core/                              # Funcionalidad compartida
 │   │   ├── error/
 │   │   │   └── failures.dart              # Clases de errores
-│   │   ├── network/                       # (Futuro) Cliente HTTP
+│   │   ├── network/                       # Configuración de red
+│   │   │   ├── api_config.dart            # URLs y configuración API
+│   │   │   ├── api_exceptions.dart        # Excepciones HTTP
+│   │   │   ├── dio_client.dart            # Cliente HTTP configurado
+│   │   │   └── periodo_manager.dart       # Gestión del período actual
 │   │   └── usecases/
 │   │       └── usecase.dart               # Clase base para casos de uso
 │   │
@@ -203,7 +215,9 @@ facturador/
 │       │       │   ├── producto_event.dart
 │       │       │   └── producto_state.dart
 │       │       ├── pages/
-│       │       │   └── productos_page.dart
+│       │       │   ├── productos_page.dart
+│       │       │   ├── crear_producto_page.dart
+│       │       │   └── ajustar_stock_page.dart
 │       │       └── widgets/
 │       │           └── producto_list_widget.dart
 │       │
@@ -345,58 +359,94 @@ class Cliente {
 
 ### 3. Módulo de Productos (`productos`)
 
-**Propósito**: Administración del inventario de productos y servicios.
+**Propósito**: Administración del inventario de productos, servicios y gestión de stock por bodega.
 
 #### Características
 
 - ✅ Catálogo de productos con stock
-- ✅ Crear producto con código único
-- ✅ Actualizar precios y stock
+- ✅ Crear producto con validaciones (descripción, medidas, precios, IVA)
+- ✅ Actualizar precios y datos del producto
+- ✅ Gestión de inventario separada por bodega
+- ✅ Ajustes de stock con motivo (ENTRADA/SALIDA)
+- ✅ Múltiples precios (precio1, precio2, precio3)
+- ✅ Código de barras
+- ✅ Control de IVA (15%)
 - ✅ Eliminar productos
-- ✅ Categorización
-- ✅ Cálculo de margen de ganancia
 
 #### Entidad Producto
 
 ```dart
 class Producto {
-  final String id;
-  final String codigo;           // Código único del producto
-  final String nombre;
-  final String? descripcion;
-  final double precio;           // Precio de venta
-  final double? costo;           // Costo de adquisición
-  final int stock;               // Cantidad disponible
-  final String? categoria;
-  final bool activo;
-  final DateTime fechaCreacion;
-  
-  // Getters calculados
-  double get margen;             // Porcentaje de ganancia
-  bool get disponible;           // activo && stock > 0
+  final String id;                 // idSysInProducto (generado por backend)
+  final String periodo;            // Período fiscal
+  final String descripcion;        // Descripción del producto
+  final String medida;             // Unidad de medida (UND, KG, etc.)
+  final double precio1;            // Precio de venta principal
+  final double? precio2;           // Precio alternativo 1
+  final double? precio3;           // Precio alternativo 2
+  final double? costo;             // Costo de adquisición
+  final String iva;                // 'S' o 'N' (aplica IVA 15%)
+  final String? barra;             // Código de barras
+  final bool activo;               // Estado del producto
+  final double stock;              // Existencia total (calculado desde bodegas)
 }
 ```
 
-#### Funcionalidades Especiales
+#### Gestión de Inventario/Stock
 
-- **Control de Stock**: Validación de disponibilidad
-- **Cálculo de Margen**: `((precio - costo) / costo) * 100`
-- **Categorías**: Organización por tipo de producto
+El sistema separa la **creación de productos** de la **gestión de stock**:
+
+**AjustarStockPage**: Pantalla dedicada para ajustes de inventario
+- Carga dinámica de bodegas desde API (`/api/Inventario/bodegas`)
+- Selector de bodega (si hay múltiples) o display automático (si es una sola)
+- Tipos de ajuste:
+  - **ENTRADA**: Añadir stock (compras, devoluciones, ajustes positivos)
+  - **SALIDA**: Reducir stock (ventas, daños, ajustes negativos)
+- Validaciones:
+  - En SALIDA: no permitir cantidad mayor al stock actual
+  - Motivo obligatorio para trazabilidad
+- Preview en tiempo real del nuevo stock
+- Integración con API: `POST /api/Inventario/ajuste`
+
+**Flujo de trabajo**:
+1. Crear producto sin stock (stock = 0)
+2. Desde la lista de productos, acceder al ajuste de stock (botón 📦)
+3. Seleccionar bodega, tipo de ajuste, cantidad y motivo
+4. Guardar ajuste → actualiza existencias en la bodega
+
+#### Endpoints de API
+
+- `POST /api/Productos`: Crear producto (sin stock)
+- `GET /api/Productos?periodo={periodo}&filtro={texto}`: Listar productos
+- `POST /api/Inventario/ajuste`: Ajustar stock
+  ```json
+  {
+    "idSysPeriodo": "2025",
+    "idSysInProducto": "PROD1",
+    "idSysInBodega": "BOD1",
+    "cantidadAjuste": 10.0,
+    "tipoAjuste": "ENTRADA",
+    "motivo": "Compra de mercadería"
+  }
+  ```
+- `GET /api/Inventario/bodegas?periodo={periodo}`: Listar bodegas disponibles
 
 ---
 
 ### 4. Módulo de Facturación (`facturacion`)
 
-**Propósito**: Creación y gestión de facturas electrónicas.
+**Propósito**: Creación y gestión de facturas con cálculo automático de IVA y totales.
 
 #### Características
 
 - ✅ Crear factura con múltiples items
 - ✅ Selección de cliente desde catálogo
 - ✅ Agregar productos desde inventario
-- ✅ Cálculo automático de totales
-- ✅ Historial de facturas
-- ✅ Ver detalle de factura
+- ✅ Cálculo automático de totales con IVA (15%)
+- ✅ Desglose de subtotal, IVA y total
+- ✅ Historial de facturas con detalles expandibles
+- ✅ Ver detalle completo de factura
+- ✅ Integración con API backend
 - 🚧 Exportar PDF
 - 🚧 Envío por email
 - 🚧 Integración con SRI (Ecuador)
@@ -406,23 +456,49 @@ class Producto {
 **Factura**
 ```dart
 class Factura {
-  final String id;
-  final String clienteNombre;
-  final double total;
-  final DateTime fecha;
-  final List<ItemFactura> items;
+  final String id;                    // idSysInVenta
+  final String periodo;               // Período fiscal
+  final String tipoDocumento;         // 'FAC', 'BOL', etc.
+  final String numeroDocumento;       // Número de factura
+  final String clienteId;             // idSysInCliente
+  final String clienteNombre;         // Nombre del cliente
+  final DateTime fecha;               // Fecha de emisión
+  final double subtotal;              // Suma antes de IVA
+  final double iva;                   // Monto de IVA (15%)
+  final double total;                 // Total a pagar
+  final String estado;                // 'Pendiente', 'Pagado', etc.
+  final List<DetalleVenta> detalles;  // Items de la factura
 }
 ```
 
-**ItemFactura**
+**DetalleVenta**
 ```dart
-class ItemFactura {
-  final String descripcion;
-  final int cantidad;
-  final double precioUnitario;
-  
-  double get subtotal => cantidad * precioUnitario;
+class DetalleVenta {
+  final String idSysInProducto;       // ID del producto
+  final String descripcion;           // Descripción del producto
+  final double cantidad;              // Cantidad vendida
+  final double precioUnitario;        // Precio por unidad
+  final String aplicaIva;             // 'S' o 'N'
+  final double subtotal;              // cantidad × precioUnitario
+  final double iva;                   // 15% si aplica
+  final double total;                 // subtotal + iva
 }
+```
+
+#### Cálculo de IVA
+
+El sistema calcula automáticamente el IVA (15%) para productos que lo tienen configurado:
+
+```dart
+// Por cada item:
+subtotal = cantidad × precioUnitario
+iva = aplicaIva == 'S' ? subtotal × 0.15 : 0.0
+total_item = subtotal + iva
+
+// Total de la factura:
+subtotal_factura = suma de todos los subtotales
+iva_factura = suma de todos los IVA
+total_factura = subtotal_factura + iva_factura
 ```
 
 #### Flujo de Creación
@@ -430,13 +506,18 @@ class ItemFactura {
 1. **Seleccionar Cliente**: Dropdown con catálogo completo
 2. **Agregar Items**: 
    - Seleccionar producto del inventario
+   - El producto trae su precio y configuración de IVA
    - Especificar cantidad
-   - Ajustar precio si es necesario
-3. **Cálculo Automático**: 
-   - Subtotal por item
-   - Total general
-   - (Futuro) IVA y descuentos
-4. **Guardar Factura**: Persistencia y generación de ID
+   - Cálculo automático de subtotal, IVA y total por item
+3. **Visualización en Tiempo Real**: 
+   - Lista de items agregados con totales
+   - Desglose: Subtotal, IVA (15%), Total
+   - Botones de eliminar item
+4. **Guardar Factura**: 
+   - Validación de items (mínimo 1)
+   - Validación de cliente seleccionado
+   - Envío a API: `POST /api/Ventas`
+   - Actualización automática del stock
 
 #### Estados del BLoC
 
@@ -444,8 +525,33 @@ class ItemFactura {
 - FacturaInitial
 - FacturaLoading
 - FacturaLoaded(List<Factura>)
+- FacturaDetailLoaded(Factura)  // Detalle de una factura específica
 - FacturaError(String message)
+- FacturaCreating
+- FacturaCreated(Factura)
 ```
+
+#### Endpoints de API
+
+- `POST /api/Ventas`: Crear nueva factura/venta
+  ```json
+  {
+    "idSysPeriodo": "2025",
+    "idSysInCliente": "CLI1",
+    "tipoDocumento": "FAC",
+    "formaPago": "EFECTIVO",
+    "fecha": "2025-11-19T10:30:00",
+    "detalles": [
+      {
+        "idSysInProducto": "PROD1",
+        "cantidad": 2,
+        "precioUnitario": 10.50
+      }
+    ]
+  }
+  ```
+- `GET /api/Ventas?periodo={periodo}&filtro={texto}`: Listar facturas
+- `GET /api/Ventas/{id}`: Obtener detalle de factura
 
 ---
 
@@ -720,31 +826,58 @@ ErrorState → UI muestra error
 - Logout
 
 #### 3. ClientesPage
-- Lista de clientes
+- Lista de clientes con integración API
 - Botón para crear nuevo
 - Búsqueda/filtros
 - Navegación a detalle
 
 #### 4. CrearClientePage
 - Formulario completo
-- Validaciones
-- Feedback de creación
+- Validaciones de campos obligatorios
+- Feedback de creación con SnackBar
+- Padding dinámico para evitar ocultamiento por navegación del sistema
 
 #### 5. ProductosPage
-- Catálogo de productos
-- Información de stock
-- Precios y márgenes
+- Catálogo de productos desde API
+- Información de stock actual
+- Botón de crear nuevo producto
+- Acceso rápido a ajuste de inventario (📦) por producto
 
-#### 6. FacturasPage
-- Historial de facturas
-- Detalles en diálogo
+#### 6. CrearProductoPage
+- Formulario completo: descripción, medida, precios (1, 2, 3)
+- Costo, IVA, código de barras
+- Nota: stock se gestiona desde módulo de inventario
+- Validaciones de campos requeridos
+- Padding dinámico para botones
+
+#### 7. AjustarStockPage
+- Carga dinámica de bodegas desde API
+- Selector de bodega (si hay múltiples) o display automático
+- Tipos de ajuste: ENTRADA / SALIDA
+- Validación de cantidad (SALIDA no puede exceder stock)
+- Campo de motivo obligatorio
+- Preview en tiempo real del nuevo stock
+- Padding dinámico en botones
+
+#### 8. FacturasPage
+- Historial de facturas desde API
+- Cards expandibles con detalles completos
+- Información: cliente, fecha, subtotal, IVA, total
+- Lista de items con cantidades y precios
 - Ordenamiento por fecha
 
-#### 7. CrearFacturaPage
-- Selector de cliente
-- Lista de items
-- Cálculo automático de totales
-- Validaciones
+#### 9. CrearFacturaPage
+- Selector de cliente desde catálogo API
+- Selector de productos desde inventario API
+- Agregar múltiples items con cantidad
+- Cálculo automático en tiempo real:
+  - Subtotal por item
+  - IVA (15%) si aplica
+  - Total por item
+  - Subtotal, IVA y total de la factura
+- Validaciones de cliente e items
+- Botón para eliminar items
+- Padding dinámico en sección de totales y botones
 
 ### Widgets Reutilizables
 
@@ -759,20 +892,59 @@ ErrorState → UI muestra error
 ### Data Sources
 
 #### Remote Data Source
-Simula llamadas a API con datos mock:
+Integración completa con API backend usando DioClient:
 
 ```dart
 @LazySingleton(as: ClienteRemoteDataSource)
-class ClienteRemoteDataSourceImpl {
-  Future<List<ClienteModel>> getClientes() async {
-    await Future.delayed(Duration(seconds: 1));
-    return _mockClientes;
+class ClienteRemoteDataSourceImpl implements ClienteRemoteDataSource {
+  final DioClient dioClient;
+  final PeriodoManager periodoManager;
+  
+  ClienteRemoteDataSourceImpl({
+    required this.dioClient,
+    required this.periodoManager,
+  });
+  
+  @override
+  Future<List<ClienteModel>> getClientes({String? filtro}) async {
+    final response = await dioClient.get(
+      '/Clientes',
+      queryParameters: {
+        'periodo': periodoManager.periodoActual,
+        if (filtro != null && filtro.isNotEmpty) 'filtro': filtro,
+      },
+    );
+    
+    if (response.data is Map && response.data['data'] != null) {
+      final List<dynamic> data = response.data['data'];
+      return data.map((json) => ClienteModel.fromJson(json)).toList();
+    }
+    return [];
+  }
+  
+  @override
+  Future<void> createCliente(ClienteModel cliente) async {
+    await dioClient.post('/Clientes', data: cliente.toJson());
   }
 }
 ```
 
+#### DioClient
+Cliente HTTP configurado con:
+- Base URL configurable
+- Timeouts (conexión: 30s, recepción: 30s)
+- Pretty logger para desarrollo
+- Manejo automático de errores con ApiException
+- Métodos: GET, POST, PUT, DELETE
+
+#### PeriodoManager
+Gestión del período fiscal actual:
+- Almacenamiento en SharedPreferences
+- Default: año actual
+- Usado en todas las peticiones de API
+
 #### Local Data Source
-Preparado para cache con SharedPreferences/Hive/SQLite:
+Preparado para cache con SharedPreferences (pendiente de implementación completa):
 
 ```dart
 @LazySingleton(as: ClienteLocalDataSource)
@@ -1025,14 +1197,50 @@ if (usuario.esAdmin || usuario.esVendedor)
 
 ## 🎯 Roadmap y TODOs
 
-### ⚠️ TODOs Actuales
+### ✅ Completado
 
 #### Capa de Datos
-- [ ] Implementar cliente HTTP real (Dio/http)
-- [ ] Configurar base URL de API
-- [ ] Implementar cache local (Hive/SharedPreferences)
+- ✅ Implementar cliente HTTP real (Dio)
+- ✅ Configurar base URL de API
+- ✅ Manejo de excepciones HTTP
+- ✅ PeriodoManager para gestión de período fiscal
+- ✅ Pretty logger para debugging
+
+#### Productos
+- ✅ Crear producto con validaciones completas
+- ✅ Múltiples precios (precio1, precio2, precio3)
+- ✅ Código de barras
+- ✅ Control de IVA por producto
+- ✅ Gestión de inventario/stock separada
+- ✅ Ajustes de stock por bodega (ENTRADA/SALIDA)
+- ✅ Carga dinámica de bodegas desde API
+- ✅ Validación de stock en salidas
+
+#### Clientes
+- ✅ CRUD completo con API
+- ✅ Formulario de creación validado
+- ✅ Listado desde API con filtros
+
+#### Facturación
+- ✅ Creación de facturas con API
+- ✅ Cálculo automático de IVA (15%)
+- ✅ Desglose de subtotal, IVA y total
+- ✅ Múltiples items por factura
+- ✅ Listado de facturas desde API
+- ✅ Detalles expandibles de facturas
+
+#### UI/UX
+- ✅ Padding dinámico en formularios (MediaQuery.padding.bottom)
+- ✅ Evitar ocultamiento de botones por navegación del sistema
+- ✅ Indicadores de carga
+- ✅ Feedback con SnackBars
+
+### ⚠️ TODOs Pendientes
+
+#### Capa de Datos
+- [ ] Implementar cache local completo (Hive/SharedPreferences)
 - [ ] Sincronización offline
-- [ ] Manejo de tokens JWT
+- [ ] Manejo de tokens JWT para autenticación
 - [ ] Refresh token automático
 
 #### Facturación
@@ -1041,17 +1249,17 @@ if (usuario.esAdmin || usuario.esVendedor)
 - [ ] Firma electrónica
 - [ ] Generación de PDF
 - [ ] Envío por email
-- [ ] Cálculo de impuestos (IVA)
 - [ ] Descuentos y promociones
 - [ ] Notas de crédito/débito
+- [ ] Formas de pago adicionales
 
 #### Productos
 - [ ] Gestión de categorías
 - [ ] Imágenes de productos
-- [ ] Código de barras
 - [ ] Control de lotes
 - [ ] Historial de precios
 - [ ] Alertas de stock bajo
+- [ ] Reporte de movimientos de inventario
 
 #### Clientes
 - [ ] Historial de compras
@@ -1070,11 +1278,12 @@ if (usuario.esAdmin || usuario.esVendedor)
 
 #### UX/UI
 - [ ] Tema oscuro
-- [ ] Animaciones
-- [ ] Búsqueda avanzada con filtros
+- [ ] Animaciones mejoradas
+- [ ] Búsqueda avanzada con más filtros
 - [ ] Paginación en listas grandes
 - [ ] Pull to refresh
 - [ ] Indicadores de carga skeleton
+- [ ] Validación de campos en tiempo real
 
 #### Testing
 - [ ] Tests unitarios completos
@@ -1092,26 +1301,37 @@ if (usuario.esAdmin || usuario.esVendedor)
 
 ### 🎯 Próximas Versiones
 
-#### v1.1 - Integración Backend
-- Conectar con API REST
-- Autenticación JWT
-- Persistencia real de datos
+#### v1.0 - ACTUAL ✅
+- ✅ Integración completa con API backend (.NET)
+- ✅ CRUD de clientes, productos y facturas
+- ✅ Gestión de inventario por bodega
+- ✅ Cálculo automático de IVA
+- ✅ UI responsive con padding dinámico
+
+#### v1.1 - Mejoras de UX (En Progreso)
+- [ ] Autenticación JWT con la API
+- [ ] Tema oscuro
+- [ ] Cache local completo
+- [ ] Modo offline básico
 
 #### v1.2 - Facturación Electrónica
-- Integración SRI
-- Generación XML
-- Firma electrónica
+- [ ] Integración SRI
+- [ ] Generación XML
+- [ ] Firma electrónica
+- [ ] Generación de PDF
 
 #### v1.3 - Reportes
-- Dashboard con gráficos
-- Exportación de reportes
-- Análisis de ventas
+- [ ] Dashboard con gráficos
+- [ ] Exportación de reportes
+- [ ] Análisis de ventas
+- [ ] Reporte de inventario
 
 #### v2.0 - Características Avanzadas
-- Modo offline completo
-- Múltiples empresas
-- Multi-idioma
-- Personalización de temas
+- [ ] Modo offline completo con sincronización
+- [ ] Múltiples empresas
+- [ ] Multi-idioma
+- [ ] Personalización de temas
+- [ ] Notificaciones push
 
 ---
 
@@ -1274,6 +1494,98 @@ Este proyecto es privado y pertenece a Apollos.
 
 ---
 
+## 🔌 Configuración de la API
+
+### URL Base
+
+Por defecto: `http://192.168.0.111:5117/api`
+
+Para cambiar la URL, edita `lib/core/network/api_config.dart`:
+
+```dart
+class ApiConfig {
+  static const String baseUrl = 'TU_URL_AQUI';
+  // ...
+}
+```
+
+### Endpoints Principales
+
+| Módulo | Método | Endpoint | Descripción |
+|--------|--------|----------|-------------|
+| Clientes | GET | `/Clientes?periodo={periodo}&filtro={texto}` | Listar clientes |
+| Clientes | POST | `/Clientes` | Crear cliente |
+| Productos | GET | `/Productos?periodo={periodo}&filtro={texto}` | Listar productos |
+| Productos | POST | `/Productos` | Crear producto |
+| Inventario | GET | `/Inventario/bodegas?periodo={periodo}` | Listar bodegas |
+| Inventario | POST | `/Inventario/ajuste` | Ajustar stock |
+| Ventas | GET | `/Ventas?periodo={periodo}&filtro={texto}` | Listar facturas |
+| Ventas | POST | `/Ventas` | Crear factura |
+| Ventas | GET | `/Ventas/{id}` | Detalle de factura |
+
+### Modelos de Request
+
+#### Crear Cliente
+```json
+{
+  "idSysPeriodo": "2025",
+  "nombre": "Cliente Ejemplo",
+  "ruc": "1234567890001",
+  "email": "cliente@ejemplo.com",
+  "telefono": "0999999999",
+  "direccion": "Av. Principal 123"
+}
+```
+
+#### Crear Producto
+```json
+{
+  "idSysPeriodo": "2025",
+  "descripcion": "Producto de Prueba",
+  "medida": "UND",
+  "precio1": 10.50,
+  "precio2": 9.50,
+  "precio3": 8.50,
+  "costo": 5.00,
+  "iva": "S",
+  "barra": "1234567890123"
+}
+```
+
+#### Ajustar Stock
+```json
+{
+  "idSysPeriodo": "2025",
+  "idSysInProducto": "PROD1",
+  "idSysInBodega": "BOD1",
+  "cantidadAjuste": 10.0,
+  "tipoAjuste": "ENTRADA",
+  "motivo": "Compra de mercadería"
+}
+```
+
+#### Crear Factura/Venta
+```json
+{
+  "idSysPeriodo": "2025",
+  "idSysInCliente": "CLI1",
+  "tipoDocumento": "FAC",
+  "formaPago": "EFECTIVO",
+  "fecha": "2025-11-19T10:30:00",
+  "detalles": [
+    {
+      "idSysInProducto": "PROD1",
+      "cantidad": 2,
+      "precioUnitario": 10.50
+    }
+  ]
+}
+```
+
+---
+
 **Última actualización**: 19 de noviembre de 2025
 
-**Versión del documento**: 1.0.0
+**Versión del documento**: 2.0.0
+
+**Versión de la app**: 1.0.0
