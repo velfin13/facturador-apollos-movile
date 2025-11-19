@@ -49,6 +49,7 @@ import '../features/productos/data/repositories/producto_repository_impl.dart'
     as _i79;
 import '../features/productos/domain/repositories/producto_repository.dart'
     as _i797;
+import '../features/productos/domain/usecases/create_producto.dart' as _i852;
 import '../features/productos/domain/usecases/get_productos.dart' as _i223;
 import '../features/productos/presentation/bloc/producto_bloc.dart' as _i829;
 import 'register_module.dart' as _i291;
@@ -124,6 +125,9 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i943.GetClientes>(
       () => _i943.GetClientes(gh<_i135.ClienteRepository>()),
     );
+    gh.factory<_i852.CreateProducto>(
+      () => _i852.CreateProducto(gh<_i797.ProductoRepository>()),
+    );
     gh.lazySingleton<_i223.GetProductos>(
       () => _i223.GetProductos(gh<_i797.ProductoRepository>()),
     );
@@ -152,7 +156,10 @@ extension GetItInjectableX on _i174.GetIt {
       ),
     );
     gh.factory<_i829.ProductoBloc>(
-      () => _i829.ProductoBloc(getProductos: gh<_i223.GetProductos>()),
+      () => _i829.ProductoBloc(
+        getProductos: gh<_i223.GetProductos>(),
+        createProducto: gh<_i852.CreateProducto>(),
+      ),
     );
     gh.factory<_i246.FacturaBloc>(
       () => _i246.FacturaBloc(

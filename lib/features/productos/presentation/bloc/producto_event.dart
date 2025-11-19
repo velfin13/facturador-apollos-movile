@@ -8,3 +8,12 @@ abstract class ProductoEvent extends Equatable {
 }
 
 class GetProductosEvent extends ProductoEvent {}
+
+class CreateProductoEvent extends ProductoEvent {
+  final Producto producto;
+
+  const CreateProductoEvent(this.producto);
+
+  @override
+  List<Object> get props => [producto];
+}

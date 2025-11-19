@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../domain/entities/producto.dart';
+import '../pages/ajustar_stock_page.dart';
 
 class ProductoListWidget extends StatelessWidget {
   final List<Producto> productos;
+  final VoidCallback? onStockAjustado;
 
-  const ProductoListWidget({super.key, required this.productos});
+  const ProductoListWidget({
+    super.key,
+    required this.productos,
+    this.onStockAjustado,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -37,22 +43,48 @@ class ProductoListWidget extends StatelessWidget {
                   Text('Código de barras: ${producto.barra}'),
               ],
             ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '\$${producto.precio.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      'Stock: ${producto.stock}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                        color: producto.stock > 0 ? Colors.green : Colors.red,
+                      ),
+                    ),
+                    Text(
+                      '\$${producto.precio.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
                 ),
-                if (!producto.disponible)
-                  const Text(
-                    'Sin stock',
-                    style: TextStyle(color: Colors.red, fontSize: 12),
-                  ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.inventory),
+                  tooltip: 'Ajustar stock',
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            AjustarStockPage(producto: producto),
+                      ),
+                    );
+
+                    if (result == true && onStockAjustado != null) {
+                      onStockAjustado!();
+                    }
+                  },
+                ),
               ],
             ),
             onTap: () {

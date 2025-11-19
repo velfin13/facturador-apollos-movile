@@ -28,3 +28,14 @@ class ProductoError extends ProductoState {
   @override
   List<Object> get props => [message];
 }
+
+class ProductoCreating extends ProductoState {}
+
+class ProductoCreated extends ProductoState {
+  final Producto producto;
+
+  const ProductoCreated(this.producto);
+
+  @override
+  List<Object> get props => [producto];
+}

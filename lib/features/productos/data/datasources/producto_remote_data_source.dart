@@ -77,8 +77,9 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
   @override
   Future<ProductoModel> createProducto(ProductoModel producto) async {
     try {
+      // 1. Crear el producto (sin stock) - El ID lo genera el backend
       final data = {
-        'idSysInProducto': producto.id,
+        // NO enviar idSysInProducto - lo genera el backend
         'idSysPeriodo': _periodoManager.periodoActual,
         'descripcion': producto.descripcion,
         'idSysInMedida': producto.medida,
@@ -95,9 +96,33 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
 
       // La API devuelve: {success, message, data, errors}
       if (response.data is Map && response.data['data'] != null) {
-        return ProductoModel.fromJson(
+        final productoCreado = ProductoModel.fromJson(
           response.data['data'] as Map<String, dynamic>,
         );
+
+        // 2. Si tiene stock inicial, ajustar el inventario
+        if (producto.stock > 0) {
+          try {
+            await _dioClient.post(
+              '/Inventario/ajuste',
+              data: {
+                'idSysPeriodo': _periodoManager.periodoActual,
+                'idSysInProducto':
+                    productoCreado.id, // Usar el ID generado por el backend
+                'idSysInBodega': null, // Bodega por defecto
+                'cantidadAjuste': producto.stock.toDouble(),
+                'tipoAjuste': 'ENTRADA',
+                'motivo': 'Stock inicial',
+              },
+            );
+          } catch (e) {
+            // Si falla el ajuste de stock, el producto ya fue creado
+            // Solo logueamos el error pero no fallamos la operación
+            print('Advertencia: No se pudo ajustar el stock inicial: $e');
+          }
+        }
+
+        return productoCreado;
       }
       throw ApiException('Error al crear producto');
     } on DioException catch (e) {
