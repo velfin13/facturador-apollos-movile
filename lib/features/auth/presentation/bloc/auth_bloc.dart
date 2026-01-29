@@ -1,3 +1,5 @@
+import 'dart:developer' as dev;
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:injectable/injectable.dart';
@@ -27,6 +29,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onLogin(LoginEvent event, Emitter<AuthState> emit) async {
+    dev.log('AuthBloc: LoginEvent recibido', name: 'auth');
     emit(AuthLoading());
 
     final failureOrUser = await loginUseCase(
@@ -34,27 +37,38 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     );
 
     failureOrUser.fold(
-      (failure) => emit(AuthError(failure.message)),
-      (usuario) => emit(AuthAuthenticated(usuario)),
+      (failure) {
+        dev.log('AuthBloc: login fallo ${failure.message}', name: 'auth');
+        emit(AuthUnauthenticated(errorMessage: failure.message));
+      },
+      (usuario) {
+        dev.log('AuthBloc: login ok usuario=${usuario.email}', name: 'auth');
+        emit(AuthAuthenticated(usuario));
+      },
     );
   }
 
   Future<void> _onLogout(LogoutEvent event, Emitter<AuthState> emit) async {
+    dev.log('AuthBloc: LogoutEvent', name: 'auth');
     await logoutUseCase(NoParams());
-    emit(AuthUnauthenticated());
+    emit(const AuthUnauthenticated());
   }
 
   Future<void> _onCheckAuth(
     CheckAuthEvent event,
     Emitter<AuthState> emit,
   ) async {
+    dev.log('AuthBloc: CheckAuthEvent', name: 'auth');
+    emit(AuthLoading());
+
     final failureOrUser = await getCurrentUser(NoParams());
 
     failureOrUser.fold((_) => emit(AuthUnauthenticated()), (usuario) {
       if (usuario != null) {
+        dev.log('AuthBloc: usuario en cache ${usuario.email}', name: 'auth');
         emit(AuthAuthenticated(usuario));
       } else {
-        emit(AuthUnauthenticated());
+        emit(const AuthUnauthenticated());
       }
     });
   }

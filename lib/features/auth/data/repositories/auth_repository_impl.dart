@@ -1,3 +1,5 @@
+import 'dart:developer' as dev;
+
 import 'package:dartz/dartz.dart';
 import 'package:injectable/injectable.dart';
 import '../../../../core/error/failures.dart';
@@ -18,10 +20,11 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, Usuario>> login(String email, String password) async {
     try {
-      final usuario = await remoteDataSource.login(email, password);
-      await localDataSource.saveUser(usuario);
-      return Right(usuario);
+      final session = await remoteDataSource.login(email, password);
+      await localDataSource.saveSession(session);
+      return Right(session.usuario);
     } catch (e) {
+      dev.log('AuthRepositoryImpl.login error: $e', name: 'auth');
       return Left(ServerFailure(e.toString()));
     }
   }
@@ -29,8 +32,9 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, Unit>> logout() async {
     try {
-      await remoteDataSource.logout();
-      await localDataSource.clearUser();
+      final current = await localDataSource.getSession();
+      await remoteDataSource.logout(idTokenHint: current?.idToken);
+      await localDataSource.clearSession();
       return const Right(unit);
     } catch (e) {
       return Left(ServerFailure(e.toString()));
@@ -40,8 +44,8 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, Usuario?>> getCurrentUser() async {
     try {
-      final usuario = await localDataSource.getCurrentUser();
-      return Right(usuario);
+      final session = await localDataSource.getSession();
+      return Right(session?.usuario);
     } catch (e) {
       return Left(CacheFailure(e.toString()));
     }

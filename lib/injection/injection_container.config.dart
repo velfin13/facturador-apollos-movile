@@ -9,10 +9,14 @@
 // coverage:ignore-file
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
+import 'package:flutter_appauth/flutter_appauth.dart' as _i337;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart' as _i558;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:injectable/injectable.dart' as _i526;
 import 'package:shared_preferences/shared_preferences.dart' as _i460;
 
+import '../core/auth/auth_token_manager.dart' as _i96;
+import '../core/auth/token_storage.dart' as _i313;
 import '../core/network/dio_client.dart' as _i393;
 import '../core/network/periodo_manager.dart' as _i744;
 import '../features/auth/data/datasources/auth_data_source.dart' as _i489;
@@ -66,23 +70,38 @@ extension GetItInjectableX on _i174.GetIt {
       () => registerModule.prefs,
       preResolve: true,
     );
-    gh.lazySingleton<_i393.DioClient>(() => _i393.DioClient());
+    gh.lazySingleton<_i558.FlutterSecureStorage>(
+      () => registerModule.secureStorage,
+    );
+    gh.lazySingleton<_i337.FlutterAppAuth>(() => registerModule.appAuth);
     gh.lazySingleton<_i865.FacturaLocalDataSource>(
       () => _i865.FacturaLocalDataSourceImpl(),
     );
     gh.lazySingleton<_i489.AuthRemoteDataSource>(
-      () => _i489.AuthRemoteDataSourceImpl(),
+      () => _i489.AuthRemoteDataSourceImpl(gh<_i337.FlutterAppAuth>()),
+    );
+    gh.lazySingleton<_i313.TokenStorage>(
+      () => _i313.TokenStorage(gh<_i558.FlutterSecureStorage>()),
     );
     gh.lazySingleton<_i744.PeriodoManager>(
       () => _i744.PeriodoManager(gh<_i460.SharedPreferences>()),
     );
     gh.lazySingleton<_i489.AuthLocalDataSource>(
-      () => _i489.AuthLocalDataSourceImpl(),
+      () => _i489.AuthLocalDataSourceImpl(gh<_i313.TokenStorage>()),
     );
-    gh.lazySingleton<_i478.ClienteRemoteDataSource>(
-      () => _i478.ClienteRemoteDataSourceImpl(
-        gh<_i393.DioClient>(),
-        gh<_i744.PeriodoManager>(),
+    gh.lazySingleton<_i96.AuthTokenManager>(
+      () => _i96.AuthTokenManager(
+        gh<_i489.AuthLocalDataSource>(),
+        gh<_i489.AuthRemoteDataSource>(),
+      ),
+    );
+    gh.lazySingleton<_i393.DioClient>(
+      () => _i393.DioClient(gh<_i96.AuthTokenManager>()),
+    );
+    gh.lazySingleton<_i869.AuthRepository>(
+      () => _i570.AuthRepositoryImpl(
+        remoteDataSource: gh<_i489.AuthRemoteDataSource>(),
+        localDataSource: gh<_i489.AuthLocalDataSource>(),
       ),
     );
     gh.lazySingleton<_i264.FacturaRemoteDataSource>(
@@ -91,16 +110,32 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i744.PeriodoManager>(),
       ),
     );
-    gh.lazySingleton<_i960.ProductoRemoteDataSource>(
-      () => _i960.ProductoRemoteDataSourceImpl(
+    gh.lazySingleton<_i478.ClienteRemoteDataSource>(
+      () => _i478.ClienteRemoteDataSourceImpl(
         gh<_i393.DioClient>(),
         gh<_i744.PeriodoManager>(),
       ),
     );
-    gh.lazySingleton<_i869.AuthRepository>(
-      () => _i570.AuthRepositoryImpl(
-        remoteDataSource: gh<_i489.AuthRemoteDataSource>(),
-        localDataSource: gh<_i489.AuthLocalDataSource>(),
+    gh.lazySingleton<_i318.GetCurrentUser>(
+      () => _i318.GetCurrentUser(gh<_i869.AuthRepository>()),
+    );
+    gh.lazySingleton<_i625.Login>(
+      () => _i625.Login(gh<_i869.AuthRepository>()),
+    );
+    gh.lazySingleton<_i338.Logout>(
+      () => _i338.Logout(gh<_i869.AuthRepository>()),
+    );
+    gh.factory<_i59.AuthBloc>(
+      () => _i59.AuthBloc(
+        loginUseCase: gh<_i625.Login>(),
+        logoutUseCase: gh<_i338.Logout>(),
+        getCurrentUser: gh<_i318.GetCurrentUser>(),
+      ),
+    );
+    gh.lazySingleton<_i960.ProductoRemoteDataSource>(
+      () => _i960.ProductoRemoteDataSourceImpl(
+        gh<_i393.DioClient>(),
+        gh<_i744.PeriodoManager>(),
       ),
     );
     gh.lazySingleton<_i757.FacturaRepository>(
@@ -109,27 +144,21 @@ extension GetItInjectableX on _i174.GetIt {
         localDataSource: gh<_i865.FacturaLocalDataSource>(),
       ),
     );
-    gh.lazySingleton<_i135.ClienteRepository>(
-      () => _i629.ClienteRepositoryImpl(
-        remoteDataSource: gh<_i478.ClienteRemoteDataSource>(),
-      ),
-    );
     gh.lazySingleton<_i797.ProductoRepository>(
       () => _i79.ProductoRepositoryImpl(
         remoteDataSource: gh<_i960.ProductoRemoteDataSource>(),
       ),
-    );
-    gh.lazySingleton<_i799.CreateCliente>(
-      () => _i799.CreateCliente(gh<_i135.ClienteRepository>()),
-    );
-    gh.lazySingleton<_i943.GetClientes>(
-      () => _i943.GetClientes(gh<_i135.ClienteRepository>()),
     );
     gh.factory<_i852.CreateProducto>(
       () => _i852.CreateProducto(gh<_i797.ProductoRepository>()),
     );
     gh.lazySingleton<_i223.GetProductos>(
       () => _i223.GetProductos(gh<_i797.ProductoRepository>()),
+    );
+    gh.lazySingleton<_i135.ClienteRepository>(
+      () => _i629.ClienteRepositoryImpl(
+        remoteDataSource: gh<_i478.ClienteRemoteDataSource>(),
+      ),
     );
     gh.factory<_i756.GetFactura>(
       () => _i756.GetFactura(gh<_i757.FacturaRepository>()),
@@ -140,14 +169,18 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i92.GetFacturas>(
       () => _i92.GetFacturas(gh<_i757.FacturaRepository>()),
     );
-    gh.lazySingleton<_i318.GetCurrentUser>(
-      () => _i318.GetCurrentUser(gh<_i869.AuthRepository>()),
+    gh.lazySingleton<_i799.CreateCliente>(
+      () => _i799.CreateCliente(gh<_i135.ClienteRepository>()),
     );
-    gh.lazySingleton<_i625.Login>(
-      () => _i625.Login(gh<_i869.AuthRepository>()),
+    gh.lazySingleton<_i943.GetClientes>(
+      () => _i943.GetClientes(gh<_i135.ClienteRepository>()),
     );
-    gh.lazySingleton<_i338.Logout>(
-      () => _i338.Logout(gh<_i869.AuthRepository>()),
+    gh.factory<_i246.FacturaBloc>(
+      () => _i246.FacturaBloc(
+        getFacturas: gh<_i92.GetFacturas>(),
+        getFactura: gh<_i756.GetFactura>(),
+        createFactura: gh<_i281.CreateFactura>(),
+      ),
     );
     gh.factory<_i454.ClienteBloc>(
       () => _i454.ClienteBloc(
@@ -159,20 +192,6 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i829.ProductoBloc(
         getProductos: gh<_i223.GetProductos>(),
         createProducto: gh<_i852.CreateProducto>(),
-      ),
-    );
-    gh.factory<_i246.FacturaBloc>(
-      () => _i246.FacturaBloc(
-        getFacturas: gh<_i92.GetFacturas>(),
-        getFactura: gh<_i756.GetFactura>(),
-        createFactura: gh<_i281.CreateFactura>(),
-      ),
-    );
-    gh.factory<_i59.AuthBloc>(
-      () => _i59.AuthBloc(
-        loginUseCase: gh<_i625.Login>(),
-        logoutUseCase: gh<_i338.Logout>(),
-        getCurrentUser: gh<_i318.GetCurrentUser>(),
       ),
     );
     return this;

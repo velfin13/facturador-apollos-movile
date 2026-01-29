@@ -33,12 +33,49 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
           useMaterial3: true,
         ),
-        home: BlocBuilder<AuthBloc, AuthState>(
+        home: BlocConsumer<AuthBloc, AuthState>(
+          listener: (context, state) {
+            debugPrint('AuthState changed to: ${state.runtimeType}');
+            if (state is AuthUnauthenticated && state.errorMessage != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.errorMessage!),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          },
           builder: (context, state) {
+            // Usuario autenticado -> Home
             if (state is AuthAuthenticated) {
               return HomePage(usuario: state.usuario);
             }
-            return const LoginPage();
+            // Usuario no autenticado -> Login
+            if (state is AuthUnauthenticated) {
+              return const LoginPage();
+            }
+            // Cualquier otro estado (Initial, Loading, Error) -> Splash/Loading
+            return Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.receipt_long,
+                      size: 80,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(height: 24),
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(
+                      state is AuthLoading ? 'Autenticando...' : 'Cargando...',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ],
+                ),
+              ),
+            );
           },
         ),
       ),
