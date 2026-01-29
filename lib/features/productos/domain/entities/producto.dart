@@ -2,57 +2,76 @@ import 'package:equatable/equatable.dart';
 
 class Producto extends Equatable {
   final String id; // idSysInProducto
-  final String periodo; // idSysPeriodo
-  final String descripcion; // descripcion (nombre del producto)
-  final String? medida; // idSysInMedida
-  final double? costo;
-  final String? iva; // 'S' o 'N'
+  final int? idSysPeriodo;
+  final String descripcion;
+  final String iva; // 'S' o 'N'
+  final String activo; // 'S' o 'N'
+  final int? idSysUsuario;
+  final String? tipo; // 'B' = Bien, 'S' = Servicio
+  final int? idImpuesto;
   final double? precio1;
   final double? precio2;
   final double? precio3;
-  final String? barra; // código de barras
-  final bool activo;
-  final int stock; // desde inventario
+  final String? barra;
+  final int? fraccion;
+  final int? idEstadoItem;
+  final int stock;
 
   const Producto({
     required this.id,
-    required this.periodo,
+    this.idSysPeriodo,
     required this.descripcion,
-    this.medida,
-    this.costo,
-    this.iva,
+    this.iva = 'N',
+    this.activo = 'S',
+    this.idSysUsuario,
+    this.tipo,
+    this.idImpuesto,
     this.precio1,
     this.precio2,
     this.precio3,
     this.barra,
-    this.activo = true,
+    this.fraccion,
+    this.idEstadoItem,
     this.stock = 0,
   });
 
   double get precio => precio1 ?? 0.0;
 
-  double get margen {
-    if (costo == null || costo == 0) return 0;
-    return ((precio - costo!) / costo!) * 100;
-  }
-
-  bool get disponible => activo && stock > 0;
+  bool get estaActivo => activo == 'S';
 
   bool get tieneIva => iva == 'S';
+
+  bool get esBien => tipo == 'B';
+
+  bool get esServicio => tipo == 'S';
+
+  String get tipoDescripcion {
+    switch (tipo) {
+      case 'B':
+        return 'Bien';
+      case 'S':
+        return 'Servicio';
+      default:
+        return 'No definido';
+    }
+  }
 
   @override
   List<Object?> get props => [
     id,
-    periodo,
+    idSysPeriodo,
     descripcion,
-    medida,
-    costo,
     iva,
+    activo,
+    idSysUsuario,
+    tipo,
+    idImpuesto,
     precio1,
     precio2,
     precio3,
     barra,
-    activo,
+    fraccion,
+    idEstadoItem,
     stock,
   ];
 }

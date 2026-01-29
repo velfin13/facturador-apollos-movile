@@ -38,7 +38,6 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
         },
       );
 
-      // La API devuelve: {success, message, data, errors}
       if (response.data is Map && response.data['data'] != null) {
         final data = response.data['data'];
         if (data is List) {
@@ -62,7 +61,6 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
         '/Productos/${_periodoManager.periodoActual}/$id',
       );
 
-      // La API devuelve: {success, message, data, errors}
       if (response.data is Map && response.data['data'] != null) {
         return ProductoModel.fromJson(
           response.data['data'] as Map<String, dynamic>,
@@ -77,52 +75,16 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
   @override
   Future<ProductoModel> createProducto(ProductoModel producto) async {
     try {
-      // 1. Crear el producto (sin stock) - El ID lo genera el backend
-      final data = {
-        // NO enviar idSysInProducto - lo genera el backend
-        'idSysPeriodo': _periodoManager.periodoActual,
-        'descripcion': producto.descripcion,
-        'idSysInMedida': producto.medida,
-        'costo': producto.costo,
-        'iva': producto.iva,
-        'precio1': producto.precio1,
-        'precio2': producto.precio2,
-        'precio3': producto.precio3,
-        'barra': producto.barra,
-        'activo': producto.activo ? 'S' : 'N',
-      };
+      final data = producto.toJson();
+      // Agregar el periodo actual si no viene
+      data['idSysPeriodo'] = producto.idSysPeriodo ?? _periodoManager.periodoActual;
 
       final response = await _dioClient.post('/Productos', data: data);
 
-      // La API devuelve: {success, message, data, errors}
       if (response.data is Map && response.data['data'] != null) {
-        final productoCreado = ProductoModel.fromJson(
+        return ProductoModel.fromJson(
           response.data['data'] as Map<String, dynamic>,
         );
-
-        // 2. Si tiene stock inicial, ajustar el inventario
-        if (producto.stock > 0) {
-          try {
-            await _dioClient.post(
-              '/Inventario/ajuste',
-              data: {
-                'idSysPeriodo': _periodoManager.periodoActual,
-                'idSysInProducto':
-                    productoCreado.id, // Usar el ID generado por el backend
-                'idSysInBodega': null, // Bodega por defecto
-                'cantidadAjuste': producto.stock.toDouble(),
-                'tipoAjuste': 'ENTRADA',
-                'motivo': 'Stock inicial',
-              },
-            );
-          } catch (e) {
-            // Si falla el ajuste de stock, el producto ya fue creado
-            // Solo logueamos el error pero no fallamos la operación
-            print('Advertencia: No se pudo ajustar el stock inicial: $e');
-          }
-        }
-
-        return productoCreado;
       }
       throw ApiException('Error al crear producto');
     } on DioException catch (e) {
@@ -133,26 +95,14 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
   @override
   Future<ProductoModel> updateProducto(ProductoModel producto) async {
     try {
-      final data = {
-        'idSysInProducto': producto.id,
-        'idSysPeriodo': producto.periodo,
-        'descripcion': producto.descripcion,
-        'idSysInMedida': producto.medida,
-        'costo': producto.costo,
-        'iva': producto.iva,
-        'precio1': producto.precio1,
-        'precio2': producto.precio2,
-        'precio3': producto.precio3,
-        'barra': producto.barra,
-        'activo': producto.activo ? 'S' : 'N',
-      };
+      final data = producto.toJson();
+      data['idSysInProducto'] = producto.id;
 
       final response = await _dioClient.put(
-        '/Productos/${producto.periodo}/${producto.id}',
+        '/Productos/${producto.idSysPeriodo}/${producto.id}',
         data: data,
       );
 
-      // La API devuelve: {success, message, data, errors}
       if (response.data is Map && response.data['data'] != null) {
         return ProductoModel.fromJson(
           response.data['data'] as Map<String, dynamic>,

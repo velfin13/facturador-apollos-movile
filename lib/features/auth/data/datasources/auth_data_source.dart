@@ -75,10 +75,22 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<AuthSession> login(String email, String password) async {
     // password no se usa en el flujo OIDC, se mantiene por compatibilidad de interfaz
     final _ = password;
-    dev.log('AuthRemoteDataSource.login: iniciando authorizeAndExchangeCode', name: 'auth');
-    dev.log('AuthRemoteDataSource.login: issuer=${KeycloakConfig.issuer}', name: 'auth');
-    dev.log('AuthRemoteDataSource.login: redirectUri=${KeycloakConfig.redirectUri}', name: 'auth');
-    dev.log('AuthRemoteDataSource.login: clientId=${KeycloakConfig.clientId}', name: 'auth');
+    dev.log(
+      'AuthRemoteDataSource.login: iniciando authorizeAndExchangeCode',
+      name: 'auth',
+    );
+    dev.log(
+      'AuthRemoteDataSource.login: issuer=${KeycloakConfig.issuer}',
+      name: 'auth',
+    );
+    dev.log(
+      'AuthRemoteDataSource.login: redirectUri=${KeycloakConfig.redirectUri}',
+      name: 'auth',
+    );
+    dev.log(
+      'AuthRemoteDataSource.login: clientId=${KeycloakConfig.clientId}',
+      name: 'auth',
+    );
 
     AuthorizationTokenResponse? result;
     try {
@@ -96,7 +108,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
     } on Exception catch (e, stackTrace) {
       dev.log('AuthRemoteDataSource.login: excepción: $e', name: 'auth');
-      dev.log('AuthRemoteDataSource.login: stackTrace: $stackTrace', name: 'auth');
+      dev.log(
+        'AuthRemoteDataSource.login: stackTrace: $stackTrace',
+        name: 'auth',
+      );
 
       final errorStr = e.toString().toLowerCase();
 
@@ -106,7 +121,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       }
 
       // Error de estado no almacenado - típico cuando el callback no puede recuperar el estado
-      if (errorStr.contains('no stored state') || errorStr.contains('state mismatch')) {
+      if (errorStr.contains('no stored state') ||
+          errorStr.contains('state mismatch')) {
         throw Exception(
           'Error de autenticación: No se pudo completar el flujo OAuth. '
           'Por favor, intente nuevamente.',
@@ -115,7 +131,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
       // Resultado nulo
       if (errorStr.contains('null')) {
-        throw Exception('No se recibió respuesta del servidor de autenticación');
+        throw Exception(
+          'No se recibió respuesta del servidor de autenticación',
+        );
       }
 
       rethrow;
@@ -149,7 +167,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<AuthSession> refresh(String refreshToken) async {
-    dev.log('AuthRemoteDataSource.refresh: solicitando nuevo token', name: 'auth');
+    dev.log(
+      'AuthRemoteDataSource.refresh: solicitando nuevo token',
+      name: 'auth',
+    );
     final result = await _appAuth.token(
       TokenRequest(
         KeycloakConfig.clientId,
@@ -193,7 +214,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         ),
       );
     } catch (_) {
-      dev.log('AuthRemoteDataSource.logout: error cerrando sesión remota', name: 'auth');
+      dev.log(
+        'AuthRemoteDataSource.logout: error cerrando sesión remota',
+        name: 'auth',
+      );
       // Ignoramos errores silenciosamente; el logout local seguirá.
     }
   }
