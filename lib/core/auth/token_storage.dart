@@ -10,6 +10,7 @@ class TokenStorage {
   static const _keyIdToken = 'id_token';
   static const _keyAccessExpiry = 'access_expiry';
   static const _keyUser = 'user';
+  static const _keySelectedRole = 'selected_role';
 
   final FlutterSecureStorage _storage;
 
@@ -62,11 +63,22 @@ class TokenStorage {
     return DateTime.tryParse(raw);
   }
 
+  Future<void> saveSelectedRole(String role) async {
+    await _storage.write(key: _keySelectedRole, value: role);
+  }
+
+  Future<String?> get selectedRole => _storage.read(key: _keySelectedRole);
+
+  Future<void> clearSelectedRole() async {
+    await _storage.delete(key: _keySelectedRole);
+  }
+
   Future<void> clear() async {
     await _storage.delete(key: _keyAccessToken);
     await _storage.delete(key: _keyRefreshToken);
     await _storage.delete(key: _keyIdToken);
     await _storage.delete(key: _keyAccessExpiry);
     await _storage.delete(key: _keyUser);
+    await _storage.delete(key: _keySelectedRole);
   }
 }

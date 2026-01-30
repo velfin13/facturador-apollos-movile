@@ -113,6 +113,7 @@ class _HomePageState extends State<HomePage> {
 
   void _showProfileSheet(BuildContext context) {
     final theme = Theme.of(context);
+    final rolActivo = widget.usuario.rolActivo!;
 
     showModalBottomSheet(
       context: context,
@@ -165,19 +166,38 @@ class _HomePageState extends State<HomePage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: _getRoleColor(widget.usuario.rol).withOpacity(0.1),
+                color: rolActivo.color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                widget.usuario.rol.displayName,
+                rolActivo.displayName,
                 style: TextStyle(
-                  color: _getRoleColor(widget.usuario.rol),
+                  color: rolActivo.color,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
             const SizedBox(height: 24),
             const Divider(),
+            if (widget.usuario.tieneMultiplesRoles) ...[
+              ListTile(
+                leading: Icon(
+                  Icons.swap_horiz,
+                  color: theme.colorScheme.primary,
+                ),
+                title: const Text('Cambiar rol'),
+                subtitle: Text(
+                  'Roles disponibles: ${widget.usuario.roles.length}',
+                  style: theme.textTheme.bodySmall,
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showRoleSwitcher(context);
+                },
+              ),
+              const Divider(),
+            ],
             ListTile(
               leading: Icon(
                 Icons.logout,
@@ -192,6 +212,95 @@ class _HomePageState extends State<HomePage> {
                 _showLogoutConfirmation(context);
               },
             ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRoleSwitcher(BuildContext context) {
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Seleccionar rol',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Elige el rol con el que deseas continuar trabajando.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ...widget.usuario.rolesOrdenados.map((rol) {
+              final isActive = rol == widget.usuario.rolActivo;
+              final color = rol.color;
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: isActive
+                        ? BorderSide(color: color, width: 2)
+                        : BorderSide.none,
+                  ),
+                  tileColor: isActive
+                      ? color.withOpacity(0.1)
+                      : theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                  leading: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(rol.icon, color: color),
+                  ),
+                  title: Text(
+                    rol.displayName,
+                    style: TextStyle(
+                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                  trailing: isActive
+                      ? Icon(Icons.check_circle, color: color)
+                      : const Icon(Icons.circle_outlined),
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (!isActive) {
+                      context.read<AuthBloc>().add(SwitchRoleEvent(rol));
+                    }
+                  },
+                ),
+              );
+            }),
             const SizedBox(height: 16),
           ],
         ),
@@ -222,16 +331,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Color _getRoleColor(UserRole role) {
-    switch (role) {
-      case UserRole.admin:
-        return Colors.purple;
-      case UserRole.vendedor:
-        return Colors.blue;
-      case UserRole.contador:
-        return Colors.teal;
-    }
-  }
 }
 
 class _NavItem {

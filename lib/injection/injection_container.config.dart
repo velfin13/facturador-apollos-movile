@@ -130,6 +130,7 @@ extension GetItInjectableX on _i174.GetIt {
         loginUseCase: gh<_i625.Login>(),
         logoutUseCase: gh<_i338.Logout>(),
         getCurrentUser: gh<_i318.GetCurrentUser>(),
+        tokenStorage: gh<_i313.TokenStorage>(),
       ),
     );
     gh.lazySingleton<_i960.ProductoRemoteDataSource>(

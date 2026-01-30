@@ -11,6 +11,24 @@ class AuthInitial extends AuthState {}
 
 class AuthLoading extends AuthState {}
 
+class AuthRoleSelectionRequired extends AuthState {
+  final Usuario usuario;
+
+  const AuthRoleSelectionRequired(this.usuario);
+
+  @override
+  List<Object> get props => [usuario];
+}
+
+class AuthNoRolesAssigned extends AuthState {
+  final Usuario usuario;
+
+  const AuthNoRolesAssigned(this.usuario);
+
+  @override
+  List<Object> get props => [usuario];
+}
+
 class AuthAuthenticated extends AuthState {
   final Usuario usuario;
 

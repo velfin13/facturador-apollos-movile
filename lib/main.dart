@@ -7,6 +7,8 @@ import 'features/productos/presentation/bloc/producto_bloc.dart';
 import 'features/facturacion/presentation/bloc/factura_bloc.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'features/auth/presentation/pages/home_page.dart';
+import 'features/auth/presentation/pages/role_selection_page.dart';
+import 'features/auth/presentation/pages/no_roles_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,7 +48,15 @@ class MyApp extends StatelessWidget {
             }
           },
           builder: (context, state) {
-            // Usuario autenticado -> Home
+            // Usuario sin roles asignados
+            if (state is AuthNoRolesAssigned) {
+              return NoRolesPage(usuario: state.usuario);
+            }
+            // Usuario necesita seleccionar rol
+            if (state is AuthRoleSelectionRequired) {
+              return RoleSelectionPage(usuario: state.usuario);
+            }
+            // Usuario autenticado con rol -> Home
             if (state is AuthAuthenticated) {
               return HomePage(usuario: state.usuario);
             }

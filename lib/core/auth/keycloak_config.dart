@@ -13,11 +13,10 @@ class KeycloakConfig {
   /// URI de redirección tras logout (opcional si no la usas en web).
   static const String postLogoutRedirectUri = 'com.apollos.facturador://oauthredirect';
 
-  /// Alcances solicitados. Incluye offline_access para refresh tokens.
+  /// Alcances solicitados.
   static const List<String> scopes = [
     'openid',
     'profile',
     'email',
-    'offline_access',
   ];
 }

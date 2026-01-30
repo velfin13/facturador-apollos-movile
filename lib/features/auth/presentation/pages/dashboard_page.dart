@@ -66,7 +66,7 @@ class DashboardPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    usuario.rol.displayName,
+                    usuario.rolActivo!.displayName,
                     style: TextStyle(
                       color: theme.colorScheme.onPrimary,
                       fontSize: 12,
@@ -225,13 +225,15 @@ class DashboardPage extends StatelessWidget {
   }
 
   String _getRoleDescription() {
-    switch (usuario.rol) {
+    switch (usuario.rolActivo) {
       case UserRole.admin:
         return 'Como administrador tienes acceso completo al sistema: facturas, clientes, productos y reportes.';
       case UserRole.vendedor:
         return 'Como vendedor puedes crear nuevas facturas para los clientes.';
       case UserRole.contador:
         return 'Como contador tienes acceso a la consulta de facturas y reportes.';
+      case null:
+        return 'Selecciona un rol para ver las opciones disponibles.';
     }
   }
 }

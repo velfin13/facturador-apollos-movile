@@ -33,7 +33,19 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
     final refreshToken = await _storage.refreshToken;
     final idToken = await _storage.idToken;
     final expires = await _storage.accessExpiry;
-    final usuario = UsuarioModel.fromJson(userJson);
+    var usuario = UsuarioModel.fromJson(userJson);
+
+    // Recuperar rol seleccionado si existe
+    final selectedRoleStr = await _storage.selectedRole;
+    if (selectedRoleStr != null && usuario.rolActivo == null) {
+      final selectedRole = UserRole.values.firstWhere(
+        (r) => r.name == selectedRoleStr,
+        orElse: () => usuario.roles.first,
+      );
+      if (usuario.roles.contains(selectedRole)) {
+        usuario = usuario.conRolActivo(selectedRole);
+      }
+    }
 
     return AuthSession(
       usuario: usuario,
@@ -94,6 +106,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
     AuthorizationTokenResponse? result;
     try {
+      dev.log('AuthRemoteDataSource.login: ANTES de authorizeAndExchangeCode', name: 'auth');
       result = await _appAuth.authorizeAndExchangeCode(
         AuthorizationTokenRequest(
           KeycloakConfig.clientId,
@@ -106,54 +119,48 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           preferEphemeralSession: false,
         ),
       );
+      dev.log('AuthRemoteDataSource.login: DESPUES de authorizeAndExchangeCode, result=$result', name: 'auth');
     } on Exception catch (e, stackTrace) {
-      dev.log('AuthRemoteDataSource.login: excepción: $e', name: 'auth');
-      dev.log(
-        'AuthRemoteDataSource.login: stackTrace: $stackTrace',
-        name: 'auth',
-      );
+      dev.log('AuthRemoteDataSource.login: ERROR COMPLETO: $e', name: 'auth');
+      dev.log('AuthRemoteDataSource.login: stackTrace: $stackTrace', name: 'auth');
 
-      final errorStr = e.toString().toLowerCase();
+      final errorStr = e.toString();
 
-      // Usuario canceló el login
-      if (errorStr.contains('cancel') || errorStr.contains('user_cancelled')) {
+      // Usuario canceló explícitamente
+      if (errorStr.contains('user_cancelled') ||
+          errorStr.contains('CANCELED') ||
+          errorStr.contains('User cancelled')) {
         throw Exception('Login cancelado por el usuario');
       }
 
-      // Error de estado no almacenado - típico cuando el callback no puede recuperar el estado
-      if (errorStr.contains('no stored state') ||
-          errorStr.contains('state mismatch')) {
+      // Error de estado no almacenado
+      if (errorStr.toLowerCase().contains('no stored state') ||
+          errorStr.toLowerCase().contains('state mismatch')) {
         throw Exception(
           'Error de autenticación: No se pudo completar el flujo OAuth. '
           'Por favor, intente nuevamente.',
         );
       }
 
-      // Resultado nulo
-      if (errorStr.contains('null')) {
-        throw Exception(
-          'No se recibió respuesta del servidor de autenticación',
-        );
-      }
-
-      rethrow;
+      // Mostrar el error real para depuración
+      throw Exception('Error de autenticación: $errorStr');
     }
-
-    dev.log(
-      'AuthRemoteDataSource.login: recibido accessToken=${result?.accessToken != null}, refreshToken=${result?.refreshToken != null}, idToken=${result?.idToken != null}',
-      name: 'auth',
-    );
 
     if (result == null) {
       throw Exception('No se recibió respuesta del servidor de autenticación');
     }
+
+    dev.log(
+      'AuthRemoteDataSource.login: recibido accessToken=${result.accessToken != null}, refreshToken=${result.refreshToken != null}, idToken=${result.idToken != null}',
+      name: 'auth',
+    );
 
     final accessToken = result.accessToken;
     if (accessToken == null) {
       throw Exception('No se recibió access_token');
     }
 
-    final claims = decodeJwt(result.idToken ?? accessToken);
+    final claims = decodeJwt(accessToken);
     final usuario = _usuarioFromClaims(claims);
 
     return AuthSession(
@@ -191,7 +198,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       throw Exception('No se recibió access_token en refresh');
     }
 
-    final claims = decodeJwt(result.idToken ?? accessToken);
+    final claims = decodeJwt(accessToken);
     final usuario = _usuarioFromClaims(claims);
 
     return AuthSession(
@@ -223,18 +230,27 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   UsuarioModel _usuarioFromClaims(Map<String, dynamic> claims) {
+    dev.log('Claims completos: $claims', name: 'auth');
+
     final id = claims['sub']?.toString() ?? 'desconocido';
     final nombre = (claims['name'] ?? claims['preferred_username'] ?? 'usuario')
         .toString();
     final email = (claims['email'] ?? '').toString();
-    final roles = _extractRoles(claims);
-    final rol = _mapRole(roles);
+    final rolesStrings = _extractRoles(claims);
+    dev.log('Roles extraidos: $rolesStrings', name: 'auth');
+    final roles = _mapRoles(rolesStrings);
+    dev.log('Roles mapeados: $roles', name: 'auth');
+
+    // Si solo tiene un rol, asignarlo automaticamente como activo
+    // Si no tiene roles, rolActivo queda null
+    final rolActivo = roles.length == 1 ? roles.first : null;
 
     return UsuarioModel(
       id: id,
       nombre: nombre,
       email: email.isNotEmpty ? email : nombre,
-      rol: rol,
+      roles: roles,
+      rolActivo: rolActivo,
       activo: true,
     );
   }
@@ -253,10 +269,24 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     return const [];
   }
 
-  UserRole _mapRole(List<String> roles) {
-    if (roles.contains('admin')) return UserRole.admin;
-    if (roles.contains('vendedor')) return UserRole.vendedor;
-    if (roles.contains('contador')) return UserRole.contador;
-    return UserRole.vendedor;
+  Set<UserRole> _mapRoles(List<String> roles) {
+    final mappedRoles = <UserRole>{};
+
+    for (final role in roles) {
+      switch (role) {
+        case 'Administrador':
+          mappedRoles.add(UserRole.admin);
+          break;
+        case 'Vendedor':
+          mappedRoles.add(UserRole.vendedor);
+          break;
+        case 'Contador':
+          mappedRoles.add(UserRole.contador);
+          break;
+      }
+    }
+
+    dev.log('Roles validos encontrados: $mappedRoles', name: 'auth');
+    return mappedRoles;
   }
 }

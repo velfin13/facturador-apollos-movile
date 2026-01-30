@@ -1,4 +1,3 @@
-import '../../domain/entities/usuario.dart';
 import 'usuario_model.dart';
 
 class AuthSession {
