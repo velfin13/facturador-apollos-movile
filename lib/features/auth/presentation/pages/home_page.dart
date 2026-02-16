@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import '../bloc/auth_bloc.dart';
 import '../../domain/entities/usuario.dart';
@@ -11,6 +10,16 @@ import '../../../productos/presentation/pages/productos_page.dart';
 import '../../../facturacion/presentation/pages/facturas_page.dart';
 import '../../../facturacion/presentation/pages/crear_factura_page.dart';
 import 'dashboard_page.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+enum PaymentFlowStage {
+  idle,
+  creating,
+  awaitingApproval,
+  confirming,
+  success,
+  error,
+}
 
 class HomePage extends StatefulWidget {
   final Usuario usuario;
@@ -21,8 +30,34 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _currentIndex = 0;
+  PaymentFlowStage _subscriptionFlowStage = PaymentFlowStage.idle;
+  String _subscriptionFlowMessage = '';
+  bool _awaitingSubscriptionCheckout = false;
+  String? _pendingPayPalOrderId;
+  String? _processingPlanId;
+  Future<_SubscriptionViewData>? _subscriptionFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed && _awaitingSubscriptionCheckout) {
+      _verifySubscriptionAfterCheckout();
+    }
+  }
 
   List<_NavItem> get _navItems {
     final items = <_NavItem>[];
@@ -397,6 +432,7 @@ class _HomePageState extends State<HomePage> {
 
   void _showSubscriptionSheet(BuildContext context) {
     final theme = Theme.of(context);
+    _subscriptionFuture = _loadSubscriptionData();
 
     showModalBottomSheet(
       context: context,
@@ -408,7 +444,7 @@ class _HomePageState extends State<HomePage> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           child: FutureBuilder<_SubscriptionViewData>(
-            future: _loadSubscriptionData(),
+            future: _subscriptionFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const SizedBox(
@@ -445,6 +481,33 @@ class _HomePageState extends State<HomePage> {
 
               final subscriptionType =
                   (current['subscriptionType'] ?? '').toString();
+              final normalizedSubscriptionType =
+                  subscriptionType.toUpperCase();
+              final currentPlanId = (current['planId'] ?? '').toString();
+              double currentPlanMonthly = 0;
+              if (currentPlanId.isNotEmpty) {
+                for (final plan in plans) {
+                  final planId = (plan['id'] ?? '').toString();
+                  if (planId.isNotEmpty && planId == currentPlanId) {
+                    currentPlanMonthly =
+                        (plan['precioMensual'] as num?)?.toDouble() ?? 0;
+                    break;
+                  }
+                }
+              }
+              if (currentPlanMonthly == 0 &&
+                  normalizedSubscriptionType.isNotEmpty) {
+                for (final plan in plans) {
+                  final planName = (plan['nombre'] ?? '').toString();
+                  final planCode = (plan['codigo'] ?? '').toString();
+                  if (planName.toUpperCase() == normalizedSubscriptionType ||
+                      planCode.toUpperCase() == normalizedSubscriptionType) {
+                    currentPlanMonthly =
+                        (plan['precioMensual'] as num?)?.toDouble() ?? 0;
+                    break;
+                  }
+                }
+              }
               final status = (current['status'] ?? '').toString();
               final invoiceLimit = current['invoiceLimit']?.toString() ?? '0';
               final remainingInvoices =
@@ -455,122 +518,217 @@ class _HomePageState extends State<HomePage> {
                           : null)
                       ?.toString() ??
                   '-';
+              final showFlowStatus = _subscriptionFlowStage != PaymentFlowStage.idle;
 
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+              return Stack(
                 children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.outlineVariant,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'Plan y suscripcion',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    margin: EdgeInsets.zero,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Plan actual: ${subscriptionType.isEmpty ? 'Sin plan' : subscriptionType}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.outlineVariant,
+                            borderRadius: BorderRadius.circular(2),
                           ),
-                          const SizedBox(height: 6),
-                          Text('Estado: $status'),
-                          Text('Facturas restantes: $remainingInvoices / $invoiceLimit'),
-                          Text('Empresas permitidas: $maxCompanies'),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text(
-                    'Actualizar plan',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: plans.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final plan = plans[index];
-                        final planName = (plan['nombre'] ?? '').toString();
-                        final planCode = (plan['codigo'] ?? '').toString();
-                        final isCurrent =
-                            planName.toUpperCase() ==
-                                subscriptionType.toUpperCase() ||
-                            planCode.toUpperCase() ==
-                                subscriptionType.toUpperCase();
-                        final monthly =
-                            (plan['precioMensual'] ?? 0).toString();
-                        final limitInvoices =
-                            (plan['limiteFacturasMensual'] ?? 0).toString();
-                        final maxComp =
-                            (plan['maximoEmpresas'] ?? 0).toString();
+                      const SizedBox(height: 14),
+                      Text(
+                        'Plan y suscripcion',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Card(
+                        margin: EdgeInsets.zero,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Plan actual: ${subscriptionType.isEmpty ? 'Sin plan' : subscriptionType}',
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 6),
+                              Text('Estado: $status'),
+                              Text('Facturas restantes: $remainingInvoices / $invoiceLimit'),
+                              Text('Empresas permitidas: $maxCompanies'),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (showFlowStatus) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _subscriptionFlowMessage,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              LinearProgressIndicator(
+                                value: _progressForStage(_subscriptionFlowStage),
+                                color: theme.colorScheme.onPrimaryContainer,
+                                backgroundColor: theme.colorScheme.onPrimaryContainer.withOpacity(0.3),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+                      Text(
+                        'Actualizar plan',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Flexible(
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: plans.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final plan = plans[index];
+                            final planName = (plan['nombre'] ?? '').toString();
+                            final planCode = (plan['codigo'] ?? '').toString();
+                            final planId = (plan['id'] ?? '').toString();
+                            final planMonthlyValue =
+                                (plan['precioMensual'] as num?)?.toDouble() ?? 0;
+                            final monthly = planMonthlyValue.toString();
+                            final limitInvoices =
+                                (plan['limiteFacturasMensual'] ?? 0).toString();
+                            final maxComp =
+                                (plan['maximoEmpresas'] ?? 0).toString();
+                            final normalizedPlanName = planName.toUpperCase();
+                            final normalizedPlanCode = planCode.toUpperCase();
+                            final normalizedCurrentPlanId =
+                                currentPlanId.isNotEmpty ? currentPlanId : '';
+                            final isCurrent = normalizedPlanName ==
+                                    normalizedSubscriptionType ||
+                                normalizedPlanCode == normalizedSubscriptionType ||
+                                (normalizedCurrentPlanId.isNotEmpty &&
+                                    planId.isNotEmpty &&
+                                    planId == normalizedCurrentPlanId);
+                            final canUpgradePlan = planMonthlyValue > currentPlanMonthly;
+                            final isProcessingThisPlan =
+                                _processingPlanId != null &&
+                                    _processingPlanId == planId &&
+                                    _isPlanFlowRunning;
 
-                        return Card(
-                          margin: EdgeInsets.zero,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
+                            return Card(
+                              margin: EdgeInsets.zero,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(
-                                      child: Text(
-                                        planName,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            planName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                        if (isCurrent)
+                                          Chip(
+                                            label: const Text('Actual'),
+                                            visualDensity: VisualDensity.compact,
+                                          ),
+                                      ],
                                     ),
-                                    if (isCurrent)
-                                      Chip(
-                                        label: const Text('Actual'),
-                                        visualDensity: VisualDensity.compact,
-                                      ),
+                                    const SizedBox(height: 4),
+                                    Text('\$$monthly/mes'),
+                                    Text('Facturas/mes: $limitInvoices'),
+                                    Text('Empresas: $maxComp'),
+                                    const SizedBox(height: 8),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: (!isCurrent && canUpgradePlan)
+                                          ? FilledButton.tonal(
+                                              onPressed: _isPlanFlowRunning
+                                                  ? null
+                                                  : () => _upgradePlan(context, plan),
+                                              child: isProcessingThisPlan
+                                                  ? Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: const [
+                                                        SizedBox(
+                                                          width: 16,
+                                                          height: 16,
+                                                          child: CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                            color: Colors.white,
+                                                          ),
+                                                        ),
+                                                        SizedBox(width: 8),
+                                                        Text('Procesando...'),
+                                                      ],
+                                                    )
+                                                  : const Text(
+                                                      'Actualizar a este plan',
+                                                    ),
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
                                   ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text('\$$monthly/mes'),
-                                Text('Facturas/mes: $limitInvoices'),
-                                Text('Empresas: $maxComp'),
-                                const SizedBox(height: 8),
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: FilledButton.tonal(
-                                    onPressed: isCurrent
-                                        ? null
-                                        : () => _upgradePlan(context, plan),
-                                    child: const Text('Actualizar a este plan'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
+                  if (_isPlanFlowRunning)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withOpacity(0.4),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 60,
+                                height: 60,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _subscriptionFlowMessage,
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               );
             },
@@ -594,6 +752,14 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
+
+    setState(() {
+      _processingPlanId = planId;
+    });
+    _updateSubscriptionFlow(
+      PaymentFlowStage.creating,
+      'Creando suscripción...',
+    );
 
     try {
       final response = await getIt<DioClient>().post(
@@ -622,26 +788,48 @@ class _HomePageState extends State<HomePage> {
       final status = (data['status'] ?? '').toString();
 
       if (approvalUrl.isNotEmpty) {
-        await Clipboard.setData(ClipboardData(text: approvalUrl));
+        _updateSubscriptionFlow(
+          PaymentFlowStage.awaitingApproval,
+          'Preparando PayPal...',
+        );
+        final uri = Uri.tryParse(approvalUrl);
+        if (uri == null) {
+          throw Exception('URL de pago invalida');
+        }
+
+        final launched = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
+
+        if (!launched) {
+          throw Exception('No se pudo abrir el navegador');
+        }
+
+        final token = uri.queryParameters['token'] ?? uri.queryParameters['orderId'];
+        if (token != null && token.isNotEmpty) {
+          _pendingPayPalOrderId = token;
+        }
+
+        _awaitingSubscriptionCheckout = true;
+        _updateSubscriptionFlow(
+          PaymentFlowStage.awaitingApproval,
+          'Abriendo PayPal...',
+        );
         if (!context.mounted) return;
-        await showDialog<void>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Continuar pago'),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
             content: Text(
-              'Se genero un enlace de pago PayPal.\n\n'
-              'Se copio al portapapeles:\n$approvalUrl',
+              'Abriendo PayPal. Finaliza el pago y vuelve a la aplicación.',
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cerrar'),
-              ),
-            ],
           ),
         );
       } else {
         if (!context.mounted) return;
+        _updateSubscriptionFlow(
+          PaymentFlowStage.success,
+          'Suscripción creada correctamente',
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Suscripcion creada. Estado: $status')),
         );
@@ -652,9 +840,114 @@ class _HomePageState extends State<HomePage> {
           ? (payload['message']?.toString() ?? 'No se pudo actualizar el plan')
           : 'No se pudo actualizar el plan';
       if (!context.mounted) return;
+      _updateSubscriptionFlow(PaymentFlowStage.error, message);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
       );
+      setState(() {
+        _processingPlanId = null;
+      });
+    } catch (_) {
+      if (!context.mounted) return;
+      const message = 'No se pudo abrir el navegador';
+      _updateSubscriptionFlow(
+        PaymentFlowStage.error,
+        message,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(message)),
+      );
+      setState(() {
+        _processingPlanId = null;
+      });
+    }
+  }
+
+  void _updateSubscriptionFlow(PaymentFlowStage stage, String message) {
+    setState(() {
+      _subscriptionFlowStage = stage;
+      _subscriptionFlowMessage = message;
+    });
+
+    if (stage == PaymentFlowStage.success || stage == PaymentFlowStage.error) {
+      Future<void>.delayed(const Duration(seconds: 3)).then((_) {
+        if (!mounted) return;
+        setState(() {
+          _subscriptionFlowStage = PaymentFlowStage.idle;
+          _subscriptionFlowMessage = '';
+          _processingPlanId = null;
+        });
+      });
+    }
+  }
+
+  double _progressForStage(PaymentFlowStage stage) {
+    switch (stage) {
+      case PaymentFlowStage.creating:
+        return 0.25;
+      case PaymentFlowStage.awaitingApproval:
+        return 0.5;
+      case PaymentFlowStage.confirming:
+        return 0.75;
+      case PaymentFlowStage.success:
+        return 1;
+      case PaymentFlowStage.error:
+        return 1;
+      case PaymentFlowStage.idle:
+      default:
+        return 0;
+    }
+  }
+
+  bool get _isPlanFlowRunning =>
+      _subscriptionFlowStage == PaymentFlowStage.creating ||
+      _subscriptionFlowStage == PaymentFlowStage.awaitingApproval ||
+      _subscriptionFlowStage == PaymentFlowStage.confirming;
+
+  Future<void> _verifySubscriptionAfterCheckout() async {
+    if (!_awaitingSubscriptionCheckout) return;
+    _awaitingSubscriptionCheckout = false;
+    _updateSubscriptionFlow(
+      PaymentFlowStage.confirming,
+      'Validando el pago...',
+    );
+
+    try {
+      if ((_pendingPayPalOrderId ?? '').isNotEmpty) {
+        await getIt<DioClient>().post(
+          '/Subscriptions/confirm-paypal',
+          data: {'orderId': _pendingPayPalOrderId},
+        );
+      }
+      final current = await _getCurrentSubscription();
+      final status = (current['status'] ?? '').toString();
+      final plan = (current['subscriptionType'] ?? '').toString();
+      final isActive = status.toUpperCase().contains('ACTIV');
+      final messageSource = isActive
+          ? 'Pago confirmado. Plan activo: ${plan.isEmpty ? 'N/D' : plan}'
+          : 'No se pudo activar el plan. Estado: $status';
+
+      if (!mounted) return;
+      _updateSubscriptionFlow(
+        isActive ? PaymentFlowStage.success : PaymentFlowStage.error,
+        messageSource,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(messageSource)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _updateSubscriptionFlow(
+        PaymentFlowStage.error,
+        'No se pudo validar el pago',
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo validar el pago al regresar'),
+        ),
+      );
+    } finally {
+      _pendingPayPalOrderId = null;
     }
   }
 }
