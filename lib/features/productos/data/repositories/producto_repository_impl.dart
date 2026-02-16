@@ -13,9 +13,9 @@ class ProductoRepositoryImpl implements ProductoRepository {
   ProductoRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<Either<Failure, List<Producto>>> getProductos() async {
+  Future<Either<Failure, List<Producto>>> getProductos({String? activo}) async {
     try {
-      final productos = await remoteDataSource.getProductos();
+      final productos = await remoteDataSource.getProductos(activo: activo);
       return Right(productos);
     } catch (e) {
       return Left(ServerFailure(e.toString()));

@@ -1,10 +1,6 @@
 import '../../domain/entities/usuario.dart';
 
-const _userRoleEnumMap = {
-  UserRole.admin: 'Administrador',
-  UserRole.vendedor: 'Vendedor',
-  UserRole.contador: 'Contador',
-};
+const _userRoleEnumMap = {UserRole.admin: 'ADMIN', UserRole.cliente: 'CLIENTE'};
 
 class UsuarioModel extends Usuario {
   const UsuarioModel({
@@ -22,13 +18,8 @@ class UsuarioModel extends Usuario {
 
     // Compatibilidad con formato antiguo (un solo rol)
     if (json.containsKey('rol') && !json.containsKey('roles')) {
-      final rolStr = json['rol'] as String;
-      final rol = _userRoleEnumMap.entries
-          .firstWhere(
-            (e) => e.value == rolStr,
-            orElse: () => const MapEntry(UserRole.vendedor, 'vendedor'),
-          )
-          .key;
+      final rolStr = json['rol']?.toString() ?? '';
+      final rol = _parseRole(rolStr) ?? UserRole.cliente;
       roles = {rol};
       rolActivo = rol;
     } else {
@@ -36,24 +27,15 @@ class UsuarioModel extends Usuario {
       final rolesJson = json['roles'] as List<dynamic>?;
       roles = rolesJson != null
           ? rolesJson
-              .map((r) => _userRoleEnumMap.entries
-                  .firstWhere(
-                    (e) => e.value == r,
-                    orElse: () => const MapEntry(UserRole.vendedor, 'vendedor'),
-                  )
-                  .key)
-              .toSet()
-          : {UserRole.vendedor};
+                .map((r) => _parseRole(r.toString()))
+                .whereType<UserRole>()
+                .toSet()
+          : {UserRole.cliente};
 
       // Parsear rol activo
       final rolActivoStr = json['rolActivo'] as String?;
       if (rolActivoStr != null) {
-        rolActivo = _userRoleEnumMap.entries
-            .firstWhere(
-              (e) => e.value == rolActivoStr,
-              orElse: () => const MapEntry(UserRole.vendedor, 'vendedor'),
-            )
-            .key;
+        rolActivo = _parseRole(rolActivoStr);
       }
     }
 
@@ -68,13 +50,13 @@ class UsuarioModel extends Usuario {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'nombre': nombre,
-        'email': email,
-        'roles': roles.map((r) => _userRoleEnumMap[r]).toList(),
-        'rolActivo': rolActivo != null ? _userRoleEnumMap[rolActivo] : null,
-        'activo': activo,
-      };
+    'id': id,
+    'nombre': nombre,
+    'email': email,
+    'roles': roles.map((r) => _userRoleEnumMap[r]).toList(),
+    'rolActivo': rolActivo != null ? _userRoleEnumMap[rolActivo] : null,
+    'activo': activo,
+  };
 
   factory UsuarioModel.fromEntity(Usuario usuario) {
     return UsuarioModel(
@@ -97,5 +79,17 @@ class UsuarioModel extends Usuario {
       rolActivo: rol,
       activo: activo,
     );
+  }
+}
+
+UserRole? _parseRole(String value) {
+  switch (value.trim().toUpperCase()) {
+    case 'ADMIN':
+    case 'ADMINISTRADOR':
+      return UserRole.admin;
+    case 'CLIENTE':
+      return UserRole.cliente;
+    default:
+      return null;
   }
 }

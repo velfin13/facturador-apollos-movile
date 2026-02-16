@@ -3,17 +3,14 @@ import 'package:flutter/material.dart';
 
 enum UserRole {
   admin,
-  vendedor,
-  contador;
+  cliente;
 
   String get displayName {
     switch (this) {
       case UserRole.admin:
         return 'Administrador';
-      case UserRole.vendedor:
-        return 'Vendedor';
-      case UserRole.contador:
-        return 'Contador';
+      case UserRole.cliente:
+        return 'Cliente';
     }
   }
 
@@ -21,10 +18,8 @@ enum UserRole {
     switch (this) {
       case UserRole.admin:
         return Icons.admin_panel_settings;
-      case UserRole.vendedor:
-        return Icons.point_of_sale;
-      case UserRole.contador:
-        return Icons.calculate;
+      case UserRole.cliente:
+        return Icons.person;
     }
   }
 
@@ -32,10 +27,8 @@ enum UserRole {
     switch (this) {
       case UserRole.admin:
         return Colors.purple;
-      case UserRole.vendedor:
+      case UserRole.cliente:
         return Colors.blue;
-      case UserRole.contador:
-        return Colors.teal;
     }
   }
 }
@@ -59,13 +52,11 @@ class Usuario extends Equatable {
 
   // Helpers para verificar si TIENE el rol (en cualquiera de sus roles)
   bool get tieneRolAdmin => roles.contains(UserRole.admin);
-  bool get tieneRolVendedor => roles.contains(UserRole.vendedor);
-  bool get tieneRolContador => roles.contains(UserRole.contador);
+  bool get tieneRolCliente => roles.contains(UserRole.cliente);
 
   // Helpers para verificar el rol ACTIVO
   bool get esAdmin => rolActivo == UserRole.admin;
-  bool get esVendedor => rolActivo == UserRole.vendedor;
-  bool get esContador => rolActivo == UserRole.contador;
+  bool get esCliente => rolActivo == UserRole.cliente;
 
   // Indica si el usuario tiene multiples roles
   bool get tieneMultiplesRoles => roles.length > 1;
@@ -80,7 +71,9 @@ class Usuario extends Equatable {
   // Crear copia con rol activo diferente
   Usuario conRolActivo(UserRole rol) {
     assert(
-        roles.contains(rol), 'El rol debe estar en la lista de roles del usuario');
+      roles.contains(rol),
+      'El rol debe estar en la lista de roles del usuario',
+    );
     return Usuario(
       id: id,
       nombre: nombre,

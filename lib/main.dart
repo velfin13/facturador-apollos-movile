@@ -9,6 +9,7 @@ import 'features/auth/presentation/pages/login_page.dart';
 import 'features/auth/presentation/pages/home_page.dart';
 import 'features/auth/presentation/pages/role_selection_page.dart';
 import 'features/auth/presentation/pages/no_roles_page.dart';
+import 'features/auth/presentation/pages/negocio_gate_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +59,9 @@ class MyApp extends StatelessWidget {
             }
             // Usuario autenticado con rol -> Home
             if (state is AuthAuthenticated) {
+              if (state.usuario.esCliente) {
+                return NegocioGatePage(usuario: state.usuario);
+              }
               return HomePage(usuario: state.usuario);
             }
             // Usuario no autenticado -> Login

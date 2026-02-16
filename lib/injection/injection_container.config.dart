@@ -17,6 +17,7 @@ import 'package:shared_preferences/shared_preferences.dart' as _i460;
 
 import '../core/auth/auth_token_manager.dart' as _i96;
 import '../core/auth/token_storage.dart' as _i313;
+import '../core/business/business_setup_service.dart' as _i465;
 import '../core/network/dio_client.dart' as _i393;
 import '../core/network/periodo_manager.dart' as _i744;
 import '../features/auth/data/datasources/auth_data_source.dart' as _i489;
@@ -55,6 +56,9 @@ import '../features/productos/domain/repositories/producto_repository.dart'
     as _i797;
 import '../features/productos/domain/usecases/create_producto.dart' as _i852;
 import '../features/productos/domain/usecases/get_productos.dart' as _i223;
+import '../features/productos/domain/usecases/toggle_producto_status.dart'
+    as _i502;
+import '../features/productos/domain/usecases/update_producto.dart' as _i453;
 import '../features/productos/presentation/bloc/producto_bloc.dart' as _i829;
 import 'register_module.dart' as _i291;
 
@@ -125,12 +129,10 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i338.Logout>(
       () => _i338.Logout(gh<_i869.AuthRepository>()),
     );
-    gh.factory<_i59.AuthBloc>(
-      () => _i59.AuthBloc(
-        loginUseCase: gh<_i625.Login>(),
-        logoutUseCase: gh<_i338.Logout>(),
-        getCurrentUser: gh<_i318.GetCurrentUser>(),
-        tokenStorage: gh<_i313.TokenStorage>(),
+    gh.lazySingleton<_i465.BusinessSetupService>(
+      () => _i465.BusinessSetupService(
+        gh<_i393.DioClient>(),
+        gh<_i744.PeriodoManager>(),
       ),
     );
     gh.lazySingleton<_i960.ProductoRemoteDataSource>(
@@ -150,8 +152,22 @@ extension GetItInjectableX on _i174.GetIt {
         remoteDataSource: gh<_i960.ProductoRemoteDataSource>(),
       ),
     );
+    gh.factory<_i59.AuthBloc>(
+      () => _i59.AuthBloc(
+        loginUseCase: gh<_i625.Login>(),
+        logoutUseCase: gh<_i338.Logout>(),
+        getCurrentUser: gh<_i318.GetCurrentUser>(),
+        tokenStorage: gh<_i313.TokenStorage>(),
+      ),
+    );
     gh.factory<_i852.CreateProducto>(
       () => _i852.CreateProducto(gh<_i797.ProductoRepository>()),
+    );
+    gh.factory<_i502.ToggleProductoStatus>(
+      () => _i502.ToggleProductoStatus(gh<_i797.ProductoRepository>()),
+    );
+    gh.factory<_i453.UpdateProducto>(
+      () => _i453.UpdateProducto(gh<_i797.ProductoRepository>()),
     );
     gh.lazySingleton<_i223.GetProductos>(
       () => _i223.GetProductos(gh<_i797.ProductoRepository>()),
@@ -193,6 +209,8 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i829.ProductoBloc(
         getProductos: gh<_i223.GetProductos>(),
         createProducto: gh<_i852.CreateProducto>(),
+        updateProducto: gh<_i453.UpdateProducto>(),
+        toggleProductoStatus: gh<_i502.ToggleProductoStatus>(),
       ),
     );
     return this;

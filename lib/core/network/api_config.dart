@@ -1,11 +1,11 @@
 /// Configuración de la API
 class ApiConfig {
   // URL base de la API
-  static const String baseUrl = 'http://192.168.0.111:5117/api';
+  static const String baseUrl = 'http://192.168.0.106:5117/api';
 
   // Endpoints
   static const String clientes = '/Clientes';
-  static const String productos = '/Productos';
+  static const String productos = '/Product';
   static const String ventas = '/Ventas';
   static const String inventario = '/Inventario';
   static const String reportes = '/Reportes';

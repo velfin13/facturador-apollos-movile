@@ -54,6 +54,7 @@ class ClientesPage extends StatelessWidget {
           },
         ),
         floatingActionButton: FloatingActionButton(
+          heroTag: 'fab_clientes',
           onPressed: () async {
             final result = await Navigator.push(
               context,

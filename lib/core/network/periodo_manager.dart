@@ -5,19 +5,36 @@ import 'package:shared_preferences/shared_preferences.dart';
 @lazySingleton
 class PeriodoManager {
   static const String _periodoKey = 'periodo_actual';
+  static const String _defaultPeriodo = '1';
 
   final SharedPreferences _prefs;
   String? _periodoActual;
 
   PeriodoManager(this._prefs) {
     _periodoActual = _prefs.getString(_periodoKey);
+
+    // Migracion de valor legado: antes se guardaba el anio actual (ej. 2026).
+    // En este proyecto IdSysPeriodo no es anio, sino identificador de empresa/periodo.
+    if (_periodoActual != null &&
+        RegExp(r'^20\d{2}$').hasMatch(_periodoActual!)) {
+      _periodoActual = _defaultPeriodo;
+      _prefs.setString(_periodoKey, _defaultPeriodo);
+    }
   }
 
   /// Obtiene el período actual
   String get periodoActual {
+    // Defensa extra: si por cualquier motivo queda guardado un anio (ej. 2026),
+    // lo corregimos en caliente al periodo por defecto de la empresa.
+    if (_periodoActual != null &&
+        RegExp(r'^20\d{2}$').hasMatch(_periodoActual!)) {
+      _periodoActual = _defaultPeriodo;
+      _prefs.setString(_periodoKey, _defaultPeriodo);
+    }
+
     if (_periodoActual == null || _periodoActual!.isEmpty) {
-      // Por defecto usar el año actual
-      _periodoActual = DateTime.now().year.toString();
+      // En este backend IdSysPeriodo representa el contexto de empresa/periodo, no el año calendario.
+      _periodoActual = _defaultPeriodo;
       setPeriodo(_periodoActual!);
     }
     return _periodoActual!;

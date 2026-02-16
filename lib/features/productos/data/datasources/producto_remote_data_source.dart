@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
+import '../../../../core/network/api_config.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/network/periodo_manager.dart';
 import '../../../../core/network/api_exceptions.dart';
@@ -8,7 +9,7 @@ import '../models/producto_model.dart';
 abstract class ProductoRemoteDataSource {
   Future<List<ProductoModel>> getProductos({
     String? filtro,
-    bool soloActivos = true,
+    String? activo = '',
   });
   Future<ProductoModel> getProducto(String id);
   Future<ProductoModel> createProducto(ProductoModel producto);
@@ -26,15 +27,15 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
   @override
   Future<List<ProductoModel>> getProductos({
     String? filtro,
-    bool soloActivos = true,
+    String? activo = '',
   }) async {
     try {
       final response = await _dioClient.get(
-        '/Productos',
+        ApiConfig.productos,
         queryParameters: {
           'periodo': _periodoManager.periodoActual,
           if (filtro != null && filtro.isNotEmpty) 'filtro': filtro,
-          'soloActivos': soloActivos,
+          if (activo != null) 'activo': activo,
         },
       );
 
@@ -58,7 +59,7 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
   Future<ProductoModel> getProducto(String id) async {
     try {
       final response = await _dioClient.get(
-        '/Productos/${_periodoManager.periodoActual}/$id',
+        '${ApiConfig.productos}/${_periodoManager.periodoActual}/$id',
       );
 
       if (response.data is Map && response.data['data'] != null) {
@@ -77,9 +78,10 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
     try {
       final data = producto.toJson();
       // Agregar el periodo actual si no viene
-      data['idSysPeriodo'] = producto.idSysPeriodo ?? _periodoManager.periodoActual;
+      data['idSysPeriodo'] =
+          producto.idSysPeriodo ?? _periodoManager.periodoActual;
 
-      final response = await _dioClient.post('/Productos', data: data);
+      final response = await _dioClient.post(ApiConfig.productos, data: data);
 
       if (response.data is Map && response.data['data'] != null) {
         return ProductoModel.fromJson(
@@ -95,11 +97,22 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
   @override
   Future<ProductoModel> updateProducto(ProductoModel producto) async {
     try {
-      final data = producto.toJson();
-      data['idSysInProducto'] = producto.id;
+      // El backend toma periodo/id desde la URL en el PUT.
+      // Evitamos enviar esos campos porque en UpdateProductCommand
+      // IdSysPeriodo es string y puede fallar si llega como número.
+      final data = <String, dynamic>{
+        'descripcion': producto.descripcion,
+        'iva': producto.iva,
+        'activo': producto.activo,
+        'precio1': producto.precio1,
+        'precio2': producto.precio2,
+        'precio3': producto.precio3,
+        'barra': producto.barra,
+        'idImpuesto': producto.idImpuesto,
+      }..removeWhere((_, value) => value == null);
 
       final response = await _dioClient.put(
-        '/Productos/${producto.idSysPeriodo}/${producto.id}',
+        '${ApiConfig.productos}/${producto.idSysPeriodo}/${producto.id}',
         data: data,
       );
 
@@ -118,7 +131,7 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
   Future<void> deleteProducto(String id) async {
     try {
       await _dioClient.delete(
-        '/Productos/${_periodoManager.periodoActual}/$id',
+        '${ApiConfig.productos}/${_periodoManager.periodoActual}/$id',
       );
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);

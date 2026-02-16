@@ -5,11 +5,15 @@ import '../pages/ajustar_stock_page.dart';
 class ProductoListWidget extends StatelessWidget {
   final List<Producto> productos;
   final VoidCallback? onStockAjustado;
+  final ValueChanged<Producto>? onToggleStatus;
+  final ValueChanged<Producto>? onEdit;
 
   const ProductoListWidget({
     super.key,
     required this.productos,
     this.onStockAjustado,
+    this.onToggleStatus,
+    this.onEdit,
   });
 
   @override
@@ -28,8 +32,8 @@ class ProductoListWidget extends StatelessWidget {
             Text(
               'No hay productos',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
+                color: Theme.of(context).colorScheme.outline,
+              ),
             ),
           ],
         ),
@@ -44,6 +48,8 @@ class ProductoListWidget extends StatelessWidget {
         return _ProductoCard(
           producto: producto,
           onStockAjustado: onStockAjustado,
+          onToggleStatus: onToggleStatus,
+          onEdit: onEdit,
         );
       },
     );
@@ -53,10 +59,14 @@ class ProductoListWidget extends StatelessWidget {
 class _ProductoCard extends StatelessWidget {
   final Producto producto;
   final VoidCallback? onStockAjustado;
+  final ValueChanged<Producto>? onToggleStatus;
+  final ValueChanged<Producto>? onEdit;
 
   const _ProductoCard({
     required this.producto,
     this.onStockAjustado,
+    this.onToggleStatus,
+    this.onEdit,
   });
 
   @override
@@ -72,7 +82,7 @@ class _ProductoCard extends StatelessWidget {
         side: BorderSide(
           color: isActive
               ? theme.colorScheme.outlineVariant
-              : theme.colorScheme.error.withOpacity(0.3),
+              : theme.colorScheme.error.withValues(alpha: 0.3),
         ),
       ),
       child: InkWell(
@@ -115,7 +125,9 @@ class _ProductoCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Row(
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         _buildTag(
                           context,
@@ -123,7 +135,6 @@ class _ProductoCard extends StatelessWidget {
                           theme.colorScheme.secondaryContainer,
                           theme.colorScheme.onSecondaryContainer,
                         ),
-                        const SizedBox(width: 6),
                         if (producto.tieneIva)
                           _buildTag(
                             context,
@@ -131,18 +142,17 @@ class _ProductoCard extends StatelessWidget {
                             Colors.orange.shade100,
                             Colors.orange.shade800,
                           ),
-                        if (!isActive) ...[
-                          const SizedBox(width: 6),
+                        if (!isActive)
                           _buildTag(
                             context,
                             'Inactivo',
                             theme.colorScheme.errorContainer,
                             theme.colorScheme.error,
                           ),
-                        ],
                       ],
                     ),
-                    if (producto.barra != null && producto.barra!.isNotEmpty) ...[
+                    if (producto.barra != null &&
+                        producto.barra!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         'Cod: ${producto.barra}',
@@ -156,62 +166,104 @@ class _ProductoCard extends StatelessWidget {
               ),
 
               // Precio y stock
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '\$${producto.precio.toStringAsFixed(2)}',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: producto.stock > 0
-                          ? Colors.green.shade50
-                          : Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Stock: ${producto.stock}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: producto.stock > 0
-                            ? Colors.green.shade700
-                            : Colors.red.shade700,
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 82),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '\$${producto.precio.toStringAsFixed(2)}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: producto.stock > 0
+                            ? Colors.green.shade50
+                            : Colors.red.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Stock: ${producto.stock}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: producto.stock > 0
+                              ? Colors.green.shade700
+                              : Colors.red.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(width: 4),
 
-              // Botón de ajustar stock
-              IconButton(
-                icon: Icon(
-                  Icons.tune,
-                  color: theme.colorScheme.primary,
-                ),
-                tooltip: 'Ajustar stock',
-                onPressed: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AjustarStockPage(producto: producto),
+              Column(
+                children: [
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 34,
+                      height: 34,
                     ),
-                  );
+                    icon: Icon(Icons.edit, color: theme.colorScheme.secondary),
+                    tooltip: 'Editar',
+                    onPressed: onEdit == null ? null : () => onEdit!(producto),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 34,
+                      height: 34,
+                    ),
+                    icon: Icon(Icons.tune, color: theme.colorScheme.primary),
+                    tooltip: 'Ajustar stock',
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              AjustarStockPage(producto: producto),
+                        ),
+                      );
 
-                  if (result == true && onStockAjustado != null) {
-                    onStockAjustado!();
-                  }
-                },
+                      if (result == true && onStockAjustado != null) {
+                        onStockAjustado!();
+                      }
+                    },
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 34,
+                      height: 34,
+                    ),
+                    icon: Icon(
+                      producto.estaActivo
+                          ? Icons.visibility_off
+                          : Icons.check_circle,
+                      color: producto.estaActivo
+                          ? theme.colorScheme.error
+                          : Colors.green.shade700,
+                    ),
+                    tooltip: producto.estaActivo ? 'Desactivar' : 'Activar',
+                    onPressed: onToggleStatus == null
+                        ? null
+                        : () => onToggleStatus!(producto),
+                  ),
+                ],
               ),
             ],
           ),
@@ -276,12 +328,24 @@ class _ProductoCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _buildDetailRow('Tipo', producto.tipoDescripcion),
-            _buildDetailRow('Precio 1', '\$${producto.precio1?.toStringAsFixed(2) ?? "0.00"}'),
+            _buildDetailRow(
+              'Precio 1',
+              '\$${producto.precio1?.toStringAsFixed(2) ?? "0.00"}',
+            ),
             if (producto.precio2 != null)
-              _buildDetailRow('Precio 2', '\$${producto.precio2!.toStringAsFixed(2)}'),
+              _buildDetailRow(
+                'Precio 2',
+                '\$${producto.precio2!.toStringAsFixed(2)}',
+              ),
             if (producto.precio3 != null)
-              _buildDetailRow('Precio 3', '\$${producto.precio3!.toStringAsFixed(2)}'),
-            _buildDetailRow('IVA', producto.tieneIva ? 'Si aplica' : 'No aplica'),
+              _buildDetailRow(
+                'Precio 3',
+                '\$${producto.precio3!.toStringAsFixed(2)}',
+              ),
+            _buildDetailRow(
+              'IVA',
+              producto.tieneIva ? 'Si aplica' : 'No aplica',
+            ),
             _buildDetailRow('Stock', '${producto.stock} unidades'),
             if (producto.barra != null && producto.barra!.isNotEmpty)
               _buildDetailRow('Codigo de barras', producto.barra!),
@@ -316,15 +380,19 @@ class _ProductoCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: const TextStyle(color: Colors.grey),
+          Expanded(
+            child: Text(label, style: const TextStyle(color: Colors.grey)),
           ),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w500),
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 2,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),

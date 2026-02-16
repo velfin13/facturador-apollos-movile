@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../bloc/auth_bloc.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -10,6 +11,8 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  String _loginHintEmail = '';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -44,8 +47,8 @@ class _LoginPageState extends State<LoginPage> {
                           ? null
                           : () {
                               context.read<AuthBloc>().add(
-                                    const LoginEvent(
-                                      email: '',
+                                    LoginEvent(
+                                      email: _loginHintEmail,
                                       password: '',
                                     ),
                                   );
@@ -57,15 +60,38 @@ class _LoginPageState extends State<LoginPage> {
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Iniciar sesión con Keycloak'),
+                          : const Text('Iniciar sesión'),
                     ),
                   );
                 },
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Serás redirigido al login de Keycloak para autenticarte.',
-                textAlign: TextAlign.center,
+              TextButton(
+                onPressed: () async {
+                  final registeredEmail = await Navigator.of(context).push<String>(
+                    MaterialPageRoute(builder: (_) => const RegisterPage()),
+                  );
+
+                  if (!context.mounted || registeredEmail == null) return;
+
+                  setState(() {
+                    _loginHintEmail = registeredEmail;
+                  });
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Registro exitoso. Ahora inicia sesión.'),
+                    ),
+                  );
+
+                  context.read<AuthBloc>().add(
+                        LoginEvent(
+                          email: _loginHintEmail,
+                          password: '',
+                        ),
+                      );
+                },
+                child: const Text('¿No tienes cuenta? Regístrate'),
               ),
             ],
           ),

@@ -103,11 +103,7 @@ class _RoleCard extends StatelessWidget {
                   color: color.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  rol.icon,
-                  size: 28,
-                  color: color,
-                ),
+                child: Icon(rol.icon, size: 28, color: color),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -146,10 +142,8 @@ class _RoleCard extends StatelessWidget {
     switch (rol) {
       case UserRole.admin:
         return 'Acceso completo a todas las funciones';
-      case UserRole.vendedor:
-        return 'Crear facturas y gestionar ventas';
-      case UserRole.contador:
-        return 'Ver reportes y gestionar facturas';
+      case UserRole.cliente:
+        return 'Gestionar clientes, productos y facturas';
     }
   }
 }

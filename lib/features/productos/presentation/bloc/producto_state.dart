@@ -39,3 +39,23 @@ class ProductoCreated extends ProductoState {
   @override
   List<Object> get props => [producto];
 }
+
+class ProductoUpdating extends ProductoState {}
+
+class ProductoUpdated extends ProductoState {
+  final Producto producto;
+
+  const ProductoUpdated(this.producto);
+
+  @override
+  List<Object> get props => [producto];
+}
+
+class ProductoStatusUpdated extends ProductoState {
+  final String message;
+
+  const ProductoStatusUpdated(this.message);
+
+  @override
+  List<Object> get props => [message];
+}

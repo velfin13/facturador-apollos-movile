@@ -106,7 +106,10 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
     AuthorizationTokenResponse? result;
     try {
-      dev.log('AuthRemoteDataSource.login: ANTES de authorizeAndExchangeCode', name: 'auth');
+      dev.log(
+        'AuthRemoteDataSource.login: ANTES de authorizeAndExchangeCode',
+        name: 'auth',
+      );
       result = await _appAuth.authorizeAndExchangeCode(
         AuthorizationTokenRequest(
           KeycloakConfig.clientId,
@@ -119,10 +122,16 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           preferEphemeralSession: false,
         ),
       );
-      dev.log('AuthRemoteDataSource.login: DESPUES de authorizeAndExchangeCode, result=$result', name: 'auth');
+      dev.log(
+        'AuthRemoteDataSource.login: DESPUES de authorizeAndExchangeCode, result=$result',
+        name: 'auth',
+      );
     } on Exception catch (e, stackTrace) {
       dev.log('AuthRemoteDataSource.login: ERROR COMPLETO: $e', name: 'auth');
-      dev.log('AuthRemoteDataSource.login: stackTrace: $stackTrace', name: 'auth');
+      dev.log(
+        'AuthRemoteDataSource.login: stackTrace: $stackTrace',
+        name: 'auth',
+      );
 
       final errorStr = e.toString();
 
@@ -256,32 +265,62 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   List<String> _extractRoles(Map<String, dynamic> claims) {
+    final roles = <String>{};
+
     final realm = claims['realm_access'];
     if (realm is Map && realm['roles'] is List) {
-      return List<String>.from(realm['roles'] as List);
+      roles.addAll(
+        (realm['roles'] as List)
+            .whereType<Object>()
+            .map((r) => r.toString())
+            .where((r) => r.isNotEmpty),
+      );
     }
 
     final resource = claims['resource_access'];
     if (resource is Map && resource.isNotEmpty) {
-      final first = (resource.values.first as Map?)?['roles'];
-      if (first is List) return List<String>.from(first);
+      final preferredClientId = claims['azp']?.toString();
+
+      // 1) Prioriza roles del cliente autorizado (azp) si existe.
+      if (preferredClientId != null && preferredClientId.isNotEmpty) {
+        final preferred = resource[preferredClientId];
+        if (preferred is Map && preferred['roles'] is List) {
+          roles.addAll(
+            (preferred['roles'] as List)
+                .whereType<Object>()
+                .map((r) => r.toString())
+                .where((r) => r.isNotEmpty),
+          );
+        }
+      }
+
+      // 2) Agrega roles de todos los clientes presentes en resource_access.
+      for (final value in resource.values) {
+        if (value is Map && value['roles'] is List) {
+          roles.addAll(
+            (value['roles'] as List)
+                .whereType<Object>()
+                .map((r) => r.toString())
+                .where((r) => r.isNotEmpty),
+          );
+        }
+      }
     }
-    return const [];
+
+    return roles.toList();
   }
 
   Set<UserRole> _mapRoles(List<String> roles) {
     final mappedRoles = <UserRole>{};
 
     for (final role in roles) {
-      switch (role) {
-        case 'Administrador':
+      switch (role.trim().toUpperCase()) {
+        case 'ADMIN':
+        case 'ADMINISTRADOR':
           mappedRoles.add(UserRole.admin);
           break;
-        case 'Vendedor':
-          mappedRoles.add(UserRole.vendedor);
-          break;
-        case 'Contador':
-          mappedRoles.add(UserRole.contador);
+        case 'CLIENTE':
+          mappedRoles.add(UserRole.cliente);
           break;
       }
     }

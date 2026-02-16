@@ -55,6 +55,7 @@ class FacturasPage extends StatelessWidget {
           },
         ),
         floatingActionButton: FloatingActionButton(
+          heroTag: 'fab_facturas',
           onPressed: () {
             // TODO: Navegar a página de crear factura
           },

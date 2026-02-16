@@ -119,62 +119,70 @@ class DashboardPage extends StatelessWidget {
   List<Widget> _buildQuickActions(BuildContext context) {
     final actions = <Widget>[];
 
-    // Nueva factura - admin y vendedor
-    if (usuario.esAdmin || usuario.esVendedor) {
-      actions.add(_QuickActionCard(
-        icon: Icons.add_shopping_cart,
-        label: 'Nueva Factura',
-        color: Colors.green,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const CrearFacturaPage()),
+    // Nueva factura - admin y cliente
+    if (usuario.esAdmin || usuario.esCliente) {
+      actions.add(
+        _QuickActionCard(
+          icon: Icons.add_shopping_cart,
+          label: 'Nueva Factura',
+          color: Colors.green,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CrearFacturaPage()),
+          ),
         ),
-      ));
+      );
     }
 
-    // Nuevo cliente - solo admin
-    if (usuario.esAdmin) {
-      actions.add(_QuickActionCard(
-        icon: Icons.person_add,
-        label: 'Nuevo Cliente',
-        color: Colors.orange,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => BlocProvider(
-              create: (_) => getIt<ClienteBloc>(),
-              child: const CrearClientePage(),
+    // Nuevo cliente - admin y cliente
+    if (usuario.esAdmin || usuario.esCliente) {
+      actions.add(
+        _QuickActionCard(
+          icon: Icons.person_add,
+          label: 'Nuevo Cliente',
+          color: Colors.orange,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BlocProvider(
+                create: (_) => getIt<ClienteBloc>(),
+                child: const CrearClientePage(),
+              ),
             ),
           ),
         ),
-      ));
+      );
     }
 
-    // Nuevo producto - solo admin
-    if (usuario.esAdmin) {
-      actions.add(_QuickActionCard(
-        icon: Icons.add_box,
-        label: 'Nuevo Producto',
-        color: Colors.purple,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const CrearProductoPage()),
+    // Nuevo producto - admin y cliente
+    if (usuario.esAdmin || usuario.esCliente) {
+      actions.add(
+        _QuickActionCard(
+          icon: Icons.add_box,
+          label: 'Nuevo Producto',
+          color: Colors.purple,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CrearProductoPage()),
+          ),
         ),
-      ));
+      );
     }
 
-    // Ver reportes - admin y contador
-    if (usuario.esAdmin || usuario.esContador) {
-      actions.add(_QuickActionCard(
-        icon: Icons.bar_chart,
-        label: 'Reportes',
-        color: Colors.blue,
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Reportes proximamente')),
-          );
-        },
-      ));
+    // Ver reportes - solo admin (por ahora)
+    if (usuario.esAdmin) {
+      actions.add(
+        _QuickActionCard(
+          icon: Icons.bar_chart,
+          label: 'Reportes',
+          color: Colors.blue,
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Reportes proximamente')),
+            );
+          },
+        ),
+      );
     }
 
     return actions;
@@ -189,9 +197,7 @@ class DashboardPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant,
-        ),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,10 +234,8 @@ class DashboardPage extends StatelessWidget {
     switch (usuario.rolActivo) {
       case UserRole.admin:
         return 'Como administrador tienes acceso completo al sistema: facturas, clientes, productos y reportes.';
-      case UserRole.vendedor:
-        return 'Como vendedor puedes crear nuevas facturas para los clientes.';
-      case UserRole.contador:
-        return 'Como contador tienes acceso a la consulta de facturas y reportes.';
+      case UserRole.cliente:
+        return 'Como cliente puedes gestionar tus clientes, productos y facturas de tu empresa.';
       case null:
         return 'Selecciona un rol para ver las opciones disponibles.';
     }

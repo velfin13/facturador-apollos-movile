@@ -53,7 +53,10 @@ class NoRolesPage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
@@ -92,7 +95,7 @@ class NoRolesPage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Roles requeridos: Administrador, Vendedor o Contador',
+                'Roles requeridos: ADMIN o CLIENTE',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.outline,
                 ),

@@ -1498,7 +1498,7 @@ Este proyecto es privado y pertenece a Apollos.
 
 ### URL Base
 
-Por defecto: `http://192.168.0.111:5117/api`
+Por defecto: `http://192.168.0.106:5117/api`
 
 Para cambiar la URL, edita `lib/core/network/api_config.dart`:
 
