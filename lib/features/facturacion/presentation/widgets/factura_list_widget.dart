@@ -6,44 +6,95 @@ import '../bloc/factura_bloc.dart';
 
 class FacturaListWidget extends StatelessWidget {
   final List<Factura> facturas;
+  final bool hasMore;
+  final int total;
+  final VoidCallback? onLoadMore;
 
-  const FacturaListWidget({super.key, required this.facturas});
+  const FacturaListWidget({
+    super.key,
+    required this.facturas,
+    this.hasMore = false,
+    this.total = 0,
+    this.onLoadMore,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (facturas.isEmpty) {
-      return const Center(child: Text('No hay facturas disponibles'));
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.5,
+            child: const Center(child: Text('No hay facturas disponibles')),
+          ),
+        ],
+      );
     }
 
-    return ListView.builder(
-      itemCount: facturas.length,
-      itemBuilder: (context, index) {
-        final factura = facturas[index];
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              child: const Icon(Icons.receipt, color: Colors.white),
-            ),
-            title: Text(
-              '${factura.numFact ?? 'N/A'} - ${factura.clienteNombre ?? factura.clienteId}',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              'Fecha: ${DateFormat('dd/MM/yyyy').format(factura.fecha)}',
-            ),
-            trailing: Text(
-              '\$${factura.total.toStringAsFixed(2)}',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            onTap: () {
-              _showFacturaDetails(context, factura);
-            },
-
-          ),
-        );
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollEndNotification &&
+            notification.metrics.extentAfter < 200 &&
+            hasMore) {
+          onLoadMore?.call();
+        }
+        return false;
       },
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        // header + items + optional loader
+        itemCount: facturas.length + 2,
+        itemBuilder: (context, index) {
+          // Header with count
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 16, 4),
+              child: Text(
+                'Mostrando ${facturas.length} de $total facturas',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            );
+          }
+
+          final itemIndex = index - 1;
+
+          // Bottom loader
+          if (itemIndex == facturas.length) {
+            if (hasMore) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return const SizedBox.shrink();
+          }
+
+          final factura = facturas[itemIndex];
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                child: const Icon(Icons.receipt, color: Colors.white),
+              ),
+              title: Text(
+                '${factura.numFact ?? 'N/A'} · ${factura.clienteNombre ?? factura.clienteId}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(DateFormat('dd/MM/yyyy').format(factura.fecha)),
+              trailing: Text(
+                '\$${factura.total.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              onTap: () => _showFacturaDetails(context, factura),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -73,8 +124,7 @@ class FacturaListWidget extends StatelessWidget {
                   children: [
                     Text('Cliente: ${factura.clienteNombre ?? factura.clienteId}'),
                     Text('Fecha: ${DateFormat('dd/MM/yyyy').format(factura.fecha)}'),
-                    if (factura.observacion != null &&
-                        factura.observacion!.isNotEmpty)
+                    if (factura.observacion != null && factura.observacion!.isNotEmpty)
                       Text('Observación: ${factura.observacion}'),
                     const SizedBox(height: 16),
                     const Text(
