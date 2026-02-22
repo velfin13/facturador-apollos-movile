@@ -4,7 +4,7 @@ abstract class ClienteState extends Equatable {
   const ClienteState();
 
   @override
-  List<Object> get props => [];
+  List<Object?> get props => [];
 }
 
 class ClienteInitial extends ClienteState {}
@@ -13,11 +13,13 @@ class ClienteLoading extends ClienteState {}
 
 class ClienteLoaded extends ClienteState {
   final List<Cliente> clientes;
+  final bool hasMore;
+  final int total;
 
-  const ClienteLoaded(this.clientes);
+  const ClienteLoaded(this.clientes, {this.hasMore = false, this.total = 0});
 
   @override
-  List<Object> get props => [clientes];
+  List<Object?> get props => [clientes, hasMore, total];
 }
 
 class ClienteError extends ClienteState {
@@ -26,7 +28,7 @@ class ClienteError extends ClienteState {
   const ClienteError(this.message);
 
   @override
-  List<Object> get props => [message];
+  List<Object?> get props => [message];
 }
 
 class ClienteCreating extends ClienteState {}
@@ -37,5 +39,5 @@ class ClienteCreated extends ClienteState {
   const ClienteCreated(this.cliente);
 
   @override
-  List<Object> get props => [cliente];
+  List<Object?> get props => [cliente];
 }

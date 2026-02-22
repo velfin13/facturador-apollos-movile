@@ -4,10 +4,31 @@ abstract class ClienteEvent extends Equatable {
   const ClienteEvent();
 
   @override
-  List<Object> get props => [];
+  List<Object?> get props => [];
 }
 
 class GetClientesEvent extends ClienteEvent {}
+
+class SearchClientesEvent extends ClienteEvent {
+  final String query;
+
+  const SearchClientesEvent(this.query);
+
+  @override
+  List<Object?> get props => [query];
+}
+
+class FilterClienteStatusEvent extends ClienteEvent {
+  /// '' = todos, 'S' = activos, 'N' = inactivos
+  final String activo;
+
+  const FilterClienteStatusEvent(this.activo);
+
+  @override
+  List<Object?> get props => [activo];
+}
+
+class LoadMoreClientesEvent extends ClienteEvent {}
 
 class CreateClienteEvent extends ClienteEvent {
   final Cliente cliente;
@@ -15,5 +36,5 @@ class CreateClienteEvent extends ClienteEvent {
   const CreateClienteEvent(this.cliente);
 
   @override
-  List<Object> get props => [cliente];
+  List<Object?> get props => [cliente];
 }
