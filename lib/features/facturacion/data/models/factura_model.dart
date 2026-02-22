@@ -61,18 +61,18 @@ class FacturaModel extends Factura {
         [];
 
     return FacturaModel(
-      idSysFcCabVenta: json['idSysFcCabVenta'] as String,
-      idSysPeriodo: json['idSysPeriodo'] as String,
+      idSysFcCabVenta: json['idSysFcCabVenta']?.toString() ?? '',
+      idSysPeriodo: json['idSysPeriodo']?.toString() ?? '',
       tipo: json['tipo'] as String?,
       fecha: DateTime.parse(json['fecha'] as String),
-      idSysFcCliente: json['idSysFcCliente'] as String,
+      idSysFcCliente: json['idSysFcCliente']?.toString() ?? '',
       clienteNombre: json['nombreCliente'] as String?,
       numFact: json['numFact'] as String?,
       observacion: json['observacion'] as String?,
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
       ivaTotal: (json['ivaTotal'] as num?)?.toDouble() ?? 0.0,
       descTotal: (json['descTotal'] as num?)?.toDouble() ?? 0.0,
-      total: (json['total'] as num).toDouble(),
+      total: (json['total'] as num?)?.toDouble() ?? 0.0,
       detalles: detalles,
       formasPagoModel: formasPago,
     );

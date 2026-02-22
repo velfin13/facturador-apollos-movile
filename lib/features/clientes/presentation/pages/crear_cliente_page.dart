@@ -32,13 +32,9 @@ class _CrearClientePageState extends State<CrearClientePage> {
 
   void _guardarCliente() {
     if (_formKey.currentState!.validate()) {
-      // Generar ID en formato CLI-XXX
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final idNumero = (timestamp % 10000).toString().padLeft(4, '0');
-
       final cliente = Cliente(
-        id: 'CLI-$idNumero',
-        periodo: DateTime.now().year.toString(),
+        id: '',
+        periodo: '',
         nombre: _nombreController.text.trim(),
         ruc: _identificacionController.text.trim(),
         email: _emailController.text.trim().isEmpty

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import '../../domain/entities/factura.dart';
+import '../bloc/factura_bloc.dart';
 
 class FacturaListWidget extends StatelessWidget {
   final List<Factura> facturas;
@@ -38,89 +40,106 @@ class FacturaListWidget extends StatelessWidget {
             onTap: () {
               _showFacturaDetails(context, factura);
             },
+
           ),
         );
       },
     );
   }
 
-  void _showFacturaDetails(BuildContext context, Factura factura) {
+  void _showFacturaDetails(BuildContext outerContext, Factura factura) {
+    final bloc = outerContext.read<FacturaBloc>();
+    bloc.add(GetFacturaDetailsEvent(factura.id));
+
     showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Factura ${factura.numFact ?? factura.id}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Cliente: ${factura.clienteNombre ?? factura.clienteId}'),
-              Text('Fecha: ${DateFormat('dd/MM/yyyy').format(factura.fecha)}'),
-              if (factura.observacion != null &&
-                  factura.observacion!.isNotEmpty)
-                Text('Observación: ${factura.observacion}'),
-              const SizedBox(height: 16),
-              const Text(
-                'Items:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              if (factura.items.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(left: 8, top: 4),
-                  child: Text('No hay detalles disponibles'),
-                )
-              else
-                ...factura.items.map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(left: 8, top: 4),
-                    child: Text(
-                      '• ${item.productoNombre ?? item.productoId} x${item.cantidad.toInt()} = \$${item.subtotal.toStringAsFixed(2)}',
+      context: outerContext,
+      builder: (dialogContext) => BlocProvider.value(
+        value: bloc,
+        child: AlertDialog(
+          title: Text('Factura ${factura.numFact ?? factura.id}'),
+          content: SingleChildScrollView(
+            child: BlocBuilder<FacturaBloc, FacturaState>(
+              buildWhen: (prev, curr) =>
+                  curr is FacturaDetailsLoaded || curr is FacturaError,
+              builder: (ctx, state) {
+                final detalle = state is FacturaDetailsLoaded &&
+                        state.factura.id == factura.id
+                    ? state.factura
+                    : null;
+
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Cliente: ${factura.clienteNombre ?? factura.clienteId}'),
+                    Text('Fecha: ${DateFormat('dd/MM/yyyy').format(factura.fecha)}'),
+                    if (factura.observacion != null &&
+                        factura.observacion!.isNotEmpty)
+                      Text('Observación: ${factura.observacion}'),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Items:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                  ),
-                ),
-              const Divider(),
-              if (factura.descTotal > 0) ...[
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    'Descuento: -\$${factura.descTotal.toStringAsFixed(2)}',
-                    style: const TextStyle(color: Colors.green),
-                  ),
-                ),
-              ],
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'Subtotal: \$${factura.subtotal.toStringAsFixed(2)}',
-                ),
-              ),
-              if (factura.ivaTotal > 0) ...[
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    'IVA (15%): \$${factura.ivaTotal.toStringAsFixed(2)}',
-                  ),
-                ),
-              ],
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Total: \$${factura.total.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ],
+                    if (detalle == null)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (detalle.items.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 8, top: 4),
+                        child: Text('No hay detalles disponibles'),
+                      )
+                    else
+                      ...detalle.items.map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.only(left: 8, top: 4),
+                          child: Text(
+                            '• ${item.productoNombre ?? item.productoId} x${item.cantidad.toInt()} = \$${(item.cantidad * item.valor).toStringAsFixed(2)}',
+                          ),
+                        ),
+                      ),
+                    const Divider(),
+                    if (factura.descTotal > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Descuento: -\$${factura.descTotal.toStringAsFixed(2)}',
+                          style: const TextStyle(color: Colors.green),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('Subtotal: \$${factura.subtotal.toStringAsFixed(2)}'),
+                    ),
+                    if (factura.ivaTotal > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('IVA: \$${factura.ivaTotal.toStringAsFixed(2)}'),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Total: \$${factura.total.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cerrar'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-        ],
       ),
     );
   }

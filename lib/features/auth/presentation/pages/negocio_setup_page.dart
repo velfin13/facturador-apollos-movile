@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/business/business_setup_service.dart';
 import '../../domain/entities/usuario.dart';
+import '../bloc/auth_bloc.dart';
 
 class NegocioSetupPage extends StatefulWidget {
   final Usuario usuario;
@@ -63,6 +65,13 @@ class _NegocioSetupPageState extends State<NegocioSetupPage> {
       appBar: AppBar(
         title: const Text('Registra Tu Negocio'),
         automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Cerrar sesión',
+            onPressed: () => context.read<AuthBloc>().add(LogoutEvent()),
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(

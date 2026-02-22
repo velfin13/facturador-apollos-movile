@@ -66,8 +66,7 @@ class ClienteRemoteDataSourceImpl implements ClienteRemoteDataSource {
   Future<ClienteModel> createCliente(ClienteModel cliente) async {
     try {
       final data = {
-        'idSysFcCliente': cliente.id,
-        'idSysPeriodo': cliente.periodo,
+        'idSysPeriodo': _periodoManager.periodoActual,
         'nombre': cliente.nombre,
         'direccion': cliente.direccion,
         'telefono': cliente.telefono,

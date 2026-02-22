@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/business/business_setup_service.dart';
 import '../../../../injection/injection_container.dart';
 import '../../domain/entities/usuario.dart';
+import '../bloc/auth_bloc.dart';
 import 'home_page.dart';
 import 'negocio_setup_page.dart';
 
@@ -50,7 +52,16 @@ class _NegocioGatePageState extends State<NegocioGatePage> {
 
     if (_skipped) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Registro Pendiente')),
+        appBar: AppBar(
+          title: const Text('Registro Pendiente'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Cerrar sesión',
+              onPressed: () => context.read<AuthBloc>().add(LogoutEvent()),
+            ),
+          ],
+        ),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),

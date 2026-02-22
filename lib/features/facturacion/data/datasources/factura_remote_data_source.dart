@@ -82,26 +82,28 @@ class FacturaRemoteDataSourceImpl implements FacturaRemoteDataSource {
   @override
   Future<FacturaModel> createFactura(FacturaModel factura) async {
     try {
+      final periodo = int.tryParse(_periodoManager.periodoActual) ?? 1;
       final data = {
-        'idSysFcCabVenta': factura.id,
-        'idSysPeriodo': _periodoManager.periodoActual,
-        'tipo': factura.tipo,
+        'idSysPeriodo': periodo,
+        'tipo': factura.tipo ?? 'FV',
         'fecha': factura.fecha.toIso8601String(),
-        'idSysFcCliente': factura.clienteId,
-        'numFact': factura.numFact,
+        'idSysFcCliente': int.tryParse(factura.clienteId) ?? 0,
         'observacion': factura.observacion,
         'detalles': factura.items.map((item) {
+          final cantidad = item.cantidad.toInt();
           return {
-            'idSysInProducto': item.productoId,
-            'cantidad': item.cantidad,
+            'idSysInProducto': int.tryParse(item.productoId) ?? 0,
+            'cantidad': cantidad,
+            'cantidadF': cantidad,
             'valor': item.valor,
             'descuentoPorcentaje': item.descuentoPorcentaje,
-            'idSysInBodega': item.bodegaId,
+            'idSysInBodega': int.tryParse(item.bodegaId ?? '0') ?? 0,
           };
         }).toList(),
         'formasPago': factura.formasPago.map((fp) {
           return {
-            'idSysFcFormaPago': fp.formaPagoId,
+            'idSysFcFormaPago': int.tryParse(fp.formaPagoId) ?? 1,
+            'idSysPeriodo': periodo,
             'valor': fp.valor,
             'numero': fp.numero,
             'referencia': fp.referencia,

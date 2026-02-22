@@ -7,6 +7,14 @@ import '../../../clientes/presentation/bloc/cliente_bloc.dart';
 import '../../../productos/presentation/bloc/producto_bloc.dart';
 import '../../domain/entities/factura.dart';
 import '../bloc/factura_bloc.dart';
+import '../../../../core/network/dio_client.dart';
+import '../../../../injection/injection_container.dart';
+
+class _FormaPago {
+  final int id;
+  final String descripcion;
+  const _FormaPago(this.id, this.descripcion);
+}
 
 class CrearFacturaPage extends StatefulWidget {
   const CrearFacturaPage({super.key});
@@ -21,18 +29,60 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
   final List<ItemFacturaTemp> _items = [];
   final _observacionController = TextEditingController();
 
+  List<_FormaPago> _formasPago = [];
+  _FormaPago? _formaPagoSeleccionada;
+  bool _loadingFormasPago = true;
+
   @override
   void initState() {
     super.initState();
-    // Cargar datos reales desde la API
     context.read<ClienteBloc>().add(GetClientesEvent());
     context.read<ProductoBloc>().add(GetProductosEvent());
+    _cargarFormasPago();
   }
 
   @override
   void dispose() {
     _observacionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _cargarFormasPago() async {
+    try {
+      final response = await getIt<DioClient>().get(
+        '/Ventas/formas-pago',
+        queryParameters: {'periodo': 1},
+      );
+      if (response.data is Map && response.data['data'] is List) {
+        final lista = (response.data['data'] as List).map((e) {
+          return _FormaPago(
+            (e['idSysFcFormaPago'] as num).toInt(),
+            (e['descripcion'] ?? 'Sin nombre').toString(),
+          );
+        }).toList();
+        if (mounted) {
+          setState(() {
+            _formasPago = lista;
+            _formaPagoSeleccionada = lista.isNotEmpty ? lista.first : null;
+            _loadingFormasPago = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _loadingFormasPago = false);
+      }
+    } catch (_) {
+      // Fallback: formas de pago conocidas
+      if (mounted) {
+        setState(() {
+          _formasPago = const [
+            _FormaPago(1, 'EFECTIVO'),
+            _FormaPago(2, 'CREDITO'),
+          ];
+          _formaPagoSeleccionada = const _FormaPago(1, 'EFECTIVO');
+          _loadingFormasPago = false;
+        });
+      }
+    }
   }
 
   double get _subtotal {
@@ -58,7 +108,13 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.pop(context, true);
+          setState(() {
+            _clienteSeleccionado = null;
+            _items.clear();
+            _observacionController.clear();
+            _formaPagoSeleccionada =
+                _formasPago.isNotEmpty ? _formasPago.first : null;
+          });
         } else if (state is FacturaError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -77,13 +133,11 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
           builder: (context, clienteState) {
             return BlocBuilder<ProductoBloc, ProductoState>(
               builder: (context, productoState) {
-                // Mostrar loading si alguno está cargando
                 if (clienteState is ClienteLoading ||
                     productoState is ProductoLoading) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                // Obtener listas desde los estados
                 final clientes = clienteState is ClienteLoaded
                     ? clienteState.clientes
                     : <Cliente>[];
@@ -101,7 +155,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Selección de Cliente
+                              // Cliente
                               Card(
                                 child: Padding(
                                   padding: const EdgeInsets.all(16),
@@ -119,40 +173,37 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                                       const SizedBox(height: 8),
                                       if (clientes.isEmpty)
                                         const Padding(
-                                          padding: EdgeInsets.all(16),
+                                          padding: EdgeInsets.all(8),
                                           child: Text(
                                             'No hay clientes disponibles',
-                                            style: TextStyle(
-                                              color: Colors.grey,
-                                            ),
+                                            style:
+                                                TextStyle(color: Colors.grey),
                                           ),
                                         )
                                       else
                                         DropdownButtonFormField<Cliente>(
                                           value: _clienteSeleccionado,
+                                          isExpanded: true,
                                           decoration: const InputDecoration(
                                             labelText: 'Seleccionar Cliente',
                                             border: OutlineInputBorder(),
                                           ),
-                                          items: clientes.map((cliente) {
+                                          items: clientes.map((c) {
                                             return DropdownMenuItem(
-                                              value: cliente,
+                                              value: c,
                                               child: Text(
-                                                '${cliente.nombre} - ${cliente.ruc}',
+                                                '${c.nombre} - ${c.ruc}',
+                                                overflow:
+                                                    TextOverflow.ellipsis,
                                               ),
                                             );
                                           }).toList(),
-                                          onChanged: (cliente) {
-                                            setState(() {
-                                              _clienteSeleccionado = cliente;
-                                            });
-                                          },
-                                          validator: (value) {
-                                            if (value == null) {
-                                              return 'Por favor seleccione un cliente';
-                                            }
-                                            return null;
-                                          },
+                                          onChanged: (c) => setState(
+                                            () => _clienteSeleccionado = c,
+                                          ),
+                                          validator: (v) => v == null
+                                              ? 'Seleccione un cliente'
+                                              : null,
                                         ),
                                     ],
                                   ),
@@ -160,7 +211,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                               ),
                               const SizedBox(height: 16),
 
-                              // Items de la factura
+                              // Items
                               Card(
                                 child: Padding(
                                   padding: const EdgeInsets.all(16),
@@ -173,7 +224,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                                             MainAxisAlignment.spaceBetween,
                                         children: [
                                           const Text(
-                                            'Items',
+                                            'Productos',
                                             style: TextStyle(
                                               fontSize: 18,
                                               fontWeight: FontWeight.bold,
@@ -182,22 +233,22 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                                           ElevatedButton.icon(
                                             onPressed: productos.isEmpty
                                                 ? null
-                                                : () => _agregarItem(productos),
+                                                : () =>
+                                                    _agregarItem(productos),
                                             icon: const Icon(Icons.add),
-                                            label: const Text('Agregar Item'),
+                                            label: const Text('Agregar'),
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 16),
+                                      const SizedBox(height: 8),
                                       if (_items.isEmpty)
                                         const Center(
                                           child: Padding(
-                                            padding: EdgeInsets.all(32),
+                                            padding: EdgeInsets.all(24),
                                             child: Text(
-                                              'No hay items agregados',
+                                              'No hay productos agregados',
                                               style: TextStyle(
-                                                color: Colors.grey,
-                                              ),
+                                                  color: Colors.grey),
                                             ),
                                           ),
                                         )
@@ -207,44 +258,40 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                                           physics:
                                               const NeverScrollableScrollPhysics(),
                                           itemCount: _items.length,
-                                          itemBuilder: (context, index) {
-                                            final item = _items[index];
-                                            return Card(
-                                              margin: const EdgeInsets.only(
-                                                bottom: 8,
+                                          itemBuilder: (ctx, i) {
+                                            final item = _items[i];
+                                            return ListTile(
+                                              contentPadding: EdgeInsets.zero,
+                                              title: Text(
+                                                item.descripcion,
+                                                style: const TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.w500),
                                               ),
-                                              child: ListTile(
-                                                title: Text(item.descripcion),
-                                                subtitle: Text(
-                                                  'Cantidad: ${item.cantidad} x \$${item.precioUnitario.toStringAsFixed(2)}',
-                                                ),
-                                                trailing: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Text(
-                                                      '\$${item.subtotal.toStringAsFixed(2)}',
-                                                      style: const TextStyle(
+                                              subtitle: Text(
+                                                '${item.cantidad} x \$${item.precioUnitario.toStringAsFixed(2)}'
+                                                '${item.aplicaIva ? ' + IVA' : ''}',
+                                              ),
+                                              trailing: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    '\$${item.total.toStringAsFixed(2)}',
+                                                    style: const TextStyle(
                                                         fontWeight:
-                                                            FontWeight.bold,
-                                                        fontSize: 16,
-                                                      ),
-                                                    ),
-                                                    IconButton(
-                                                      icon: const Icon(
+                                                            FontWeight.bold),
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(
                                                         Icons.delete,
                                                         color: Colors.red,
-                                                      ),
-                                                      onPressed: () {
+                                                        size: 20),
+                                                    onPressed: () =>
                                                         setState(() {
-                                                          _items.removeAt(
-                                                            index,
-                                                          );
-                                                        });
-                                                      },
-                                                    ),
-                                                  ],
-                                                ),
+                                                      _items.removeAt(i);
+                                                    }),
+                                                  ),
+                                                ],
                                               ),
                                             );
                                           },
@@ -253,18 +300,83 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                                   ),
                                 ),
                               ),
+                              const SizedBox(height: 16),
+
+                              // Forma de pago
+                              Card(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Forma de Pago',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      if (_loadingFormasPago)
+                                        const Center(
+                                          child: SizedBox(
+                                            height: 24,
+                                            width: 24,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 2),
+                                          ),
+                                        )
+                                      else
+                                        DropdownButtonFormField<_FormaPago>(
+                                          value: _formaPagoSeleccionada,
+                                          isExpanded: true,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Seleccionar Forma de Pago',
+                                            border: OutlineInputBorder(),
+                                          ),
+                                          items: _formasPago.map((fp) {
+                                            return DropdownMenuItem(
+                                              value: fp,
+                                              child: Text(fp.descripcion),
+                                            );
+                                          }).toList(),
+                                          onChanged: (fp) => setState(
+                                            () => _formaPagoSeleccionada = fp,
+                                          ),
+                                          validator: (v) => v == null
+                                              ? 'Seleccione una forma de pago'
+                                              : null,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              // Observación
+                              TextFormField(
+                                controller: _observacionController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Observación (opcional)',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.notes),
+                                ),
+                                maxLines: 2,
+                              ),
                             ],
                           ),
                         ),
                       ),
 
-                      // Total y botones
+                      // Totales y botones
                       Container(
                         padding: EdgeInsets.only(
                           left: 16,
                           right: 16,
                           top: 16,
-                          bottom: 16 + MediaQuery.of(context).padding.bottom,
+                          bottom:
+                              16 + MediaQuery.of(context).padding.bottom,
                         ),
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.surface,
@@ -279,14 +391,14 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                         child: Column(
                           children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                               children: [
                                 const Text('Subtotal:'),
                                 Text(
                                   '\$${_subtotal.toStringAsFixed(2)}',
                                   style: const TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                      fontWeight: FontWeight.w500),
                                 ),
                               ],
                             ),
@@ -300,15 +412,15 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                                   Text(
                                     '\$${_ivaTotal.toStringAsFixed(2)}',
                                     style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                        fontWeight: FontWeight.w500),
                                   ),
                                 ],
                               ),
                             ],
                             const Divider(height: 16),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
                               children: [
                                 const Text(
                                   'TOTAL:',
@@ -332,15 +444,33 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                               children: [
                                 Expanded(
                                   child: OutlinedButton(
-                                    onPressed: () => Navigator.pop(context),
+                                    onPressed: () =>
+                                        Navigator.pop(context),
                                     child: const Text('Cancelar'),
                                   ),
                                 ),
                                 const SizedBox(width: 16),
                                 Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: _guardarFactura,
-                                    child: const Text('Guardar Factura'),
+                                  child: BlocBuilder<FacturaBloc,
+                                      FacturaState>(
+                                    builder: (ctx, state) {
+                                      final saving =
+                                          state is FacturaCreating;
+                                      return ElevatedButton(
+                                        onPressed:
+                                            saving ? null : _guardarFactura,
+                                        child: saving
+                                            ? const SizedBox(
+                                                height: 20,
+                                                width: 20,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.white),
+                                              )
+                                            : const Text('Guardar Factura'),
+                                      );
+                                    },
                                   ),
                                 ),
                               ],
@@ -378,18 +508,13 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       if (_items.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Debe agregar al menos un item'),
+            content: Text('Debe agregar al menos un producto'),
             backgroundColor: Colors.orange,
           ),
         );
         return;
       }
 
-      // Generar ID de venta
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final idNumero = (timestamp % 10000).toString().padLeft(4, '0');
-
-      // Crear items de factura
       final itemsFactura = _items.map((item) {
         return ItemFactura(
           productoId: item.productoId,
@@ -397,15 +522,14 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
           cantidad: item.cantidad.toDouble(),
           valor: item.precioUnitario,
           descuentoPorcentaje: null,
-          bodegaId: null,
+          bodegaId: '0',
         );
       }).toList();
 
-      // Crear forma de pago (Efectivo por defecto)
       final formasPago = [
         FormaPago(
-          formaPagoId: 'EFE',
-          formaPagoNombre: 'Efectivo',
+          formaPagoId: (_formaPagoSeleccionada?.id ?? 1).toString(),
+          formaPagoNombre: _formaPagoSeleccionada?.descripcion,
           valor: _total,
           numero: null,
           referencia: null,
@@ -413,15 +537,14 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         ),
       ];
 
-      // Crear la factura
       final factura = Factura(
-        id: 'VEN-$idNumero',
-        periodo: DateTime.now().year.toString(),
-        tipo: 'FC',
+        id: '',
+        periodo: '',
+        tipo: 'FV',
         fecha: DateTime.now(),
         clienteId: _clienteSeleccionado!.id,
         clienteNombre: _clienteSeleccionado!.nombre,
-        numFact: null, // La API generará el número
+        numFact: null,
         observacion: _observacionController.text.trim().isEmpty
             ? null
             : _observacionController.text.trim(),
@@ -433,7 +556,6 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         formasPago: formasPago,
       );
 
-      // Enviar al BLoC
       context.read<FacturaBloc>().add(CreateFacturaEvent(factura));
     }
   }
@@ -471,116 +593,234 @@ class _AgregarItemDialog extends StatefulWidget {
 
 class _AgregarItemDialogState extends State<_AgregarItemDialog> {
   final _formKey = GlobalKey<FormState>();
-  Producto? _productoSeleccionado;
+  final _searchController = TextEditingController();
   final _cantidadController = TextEditingController(text: '1');
   final _precioController = TextEditingController();
+  Producto? _productoSeleccionado;
+  List<Producto> _productosFiltrados = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _productosFiltrados = widget.productos;
+    _searchController.addListener(_filtrar);
+  }
 
   @override
   void dispose() {
+    _searchController.removeListener(_filtrar);
+    _searchController.dispose();
     _cantidadController.dispose();
     _precioController.dispose();
     super.dispose();
   }
 
+  void _filtrar() {
+    final q = _searchController.text.toLowerCase();
+    setState(() {
+      _productosFiltrados = widget.productos
+          .where((p) =>
+              p.descripcion.toLowerCase().contains(q) ||
+              (p.barra ?? '').toLowerCase().contains(q))
+          .toList();
+    });
+  }
+
+  void _seleccionarProducto(Producto p) {
+    setState(() {
+      _productoSeleccionado = p;
+      _precioController.text = p.precio.toStringAsFixed(2);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Agregar Item'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<Producto>(
-              value: _productoSeleccionado,
-              decoration: const InputDecoration(
-                labelText: 'Producto',
-                border: OutlineInputBorder(),
-              ),
-              items: widget.productos.map((producto) {
-                return DropdownMenuItem(
-                  value: producto,
-                  child: Text('${producto.descripcion} - \$${producto.precio}'),
-                );
-              }).toList(),
-              onChanged: (producto) {
-                setState(() {
-                  _productoSeleccionado = producto;
-                  _precioController.text = producto?.precio.toString() ?? '';
-                });
-              },
-              validator: (value) {
-                if (value == null) return 'Seleccione un producto';
-                return null;
-              },
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+          maxWidth: 500,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Agregar Producto',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Buscador
+                TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    labelText: 'Buscar producto...',
+                    hintText: 'Nombre o código de barras',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.search),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Producto seleccionado
+                if (_productoSeleccionado != null)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle,
+                            color: Colors.blue, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _productoSeleccionado!.descripcion,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          onPressed: () =>
+                              setState(() => _productoSeleccionado = null),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Lista de resultados
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _productosFiltrados.length > 8
+                        ? 8
+                        : _productosFiltrados.length,
+                    itemBuilder: (ctx, i) {
+                      final p = _productosFiltrados[i];
+                      final selected = _productoSeleccionado?.id == p.id;
+                      return ListTile(
+                        dense: true,
+                        selected: selected,
+                        selectedTileColor: Colors.blue.withOpacity(0.1),
+                        title: Text(p.descripcion,
+                            style:
+                                const TextStyle(fontSize: 14)),
+                        subtitle: Text(
+                          '\$${p.precio.toStringAsFixed(2)}'
+                          '${p.tieneIva ? ' + IVA' : ''}'
+                          '${p.barra != null ? ' | ${p.barra}' : ''}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onTap: () => _seleccionarProducto(p),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Cantidad y precio
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _cantidadController,
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Requerido';
+                          final n = int.tryParse(v);
+                          if (n == null || n <= 0) return 'Inválido';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _precioController,
+                        decoration: const InputDecoration(
+                          labelText: 'Precio',
+                          border: OutlineInputBorder(),
+                          prefixText: '\$ ',
+                          isDense: true,
+                        ),
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Requerido';
+                          final n = double.tryParse(v);
+                          if (n == null || n <= 0) return 'Inválido';
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Acciones
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (_productoSeleccionado == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Seleccione un producto'),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                          return;
+                        }
+                        if (_formKey.currentState!.validate()) {
+                          widget.onAgregar(ItemFacturaTemp(
+                            productoId: _productoSeleccionado!.id,
+                            descripcion: _productoSeleccionado!.descripcion,
+                            cantidad:
+                                int.parse(_cantidadController.text),
+                            precioUnitario:
+                                double.parse(_precioController.text),
+                            aplicaIva: _productoSeleccionado!.tieneIva,
+                          ));
+                          Navigator.pop(context);
+                        }
+                      },
+                      child: const Text('Agregar'),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _cantidadController,
-              decoration: const InputDecoration(
-                labelText: 'Cantidad',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Ingrese la cantidad';
-                }
-                final cantidad = int.tryParse(value);
-                if (cantidad == null || cantidad <= 0) {
-                  return 'Cantidad inválida';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _precioController,
-              decoration: const InputDecoration(
-                labelText: 'Precio Unitario',
-                border: OutlineInputBorder(),
-                prefixText: '\$ ',
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Ingrese el precio';
-                }
-                final precio = double.tryParse(value);
-                if (precio == null || precio <= 0) {
-                  return 'Precio inválido';
-                }
-                return null;
-              },
-            ),
-          ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            if (_formKey.currentState!.validate()) {
-              final item = ItemFacturaTemp(
-                productoId: _productoSeleccionado!.id,
-                descripcion: _productoSeleccionado!.descripcion,
-                cantidad: int.parse(_cantidadController.text),
-                precioUnitario: double.parse(_precioController.text),
-                aplicaIva: _productoSeleccionado!.iva == 'S',
-              );
-              widget.onAgregar(item);
-              Navigator.pop(context);
-            }
-          },
-          child: const Text('Agregar'),
-        ),
-      ],
     );
   }
 }

@@ -6,7 +6,9 @@ import '../../domain/entities/usuario.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../injection/injection_container.dart';
 import '../../../clientes/presentation/pages/clientes_page.dart';
+import '../../../clientes/presentation/bloc/cliente_bloc.dart';
 import '../../../productos/presentation/pages/productos_page.dart';
+import '../../../productos/presentation/bloc/producto_bloc.dart';
 import '../../../facturacion/presentation/pages/facturas_page.dart';
 import '../../../facturacion/presentation/pages/crear_factura_page.dart';
 import 'dashboard_page.dart';
@@ -87,11 +89,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Nueva Factura - admin y cliente
     if (widget.usuario.esAdmin || widget.usuario.esCliente) {
       items.add(
-        const _NavItem(
+        _NavItem(
           label: 'Facturar',
           icon: Icons.add_circle_outline,
           activeIcon: Icons.add_circle,
-          page: CrearFacturaPage(),
+          page: MultiBlocProvider(
+            providers: [
+              BlocProvider(create: (_) => getIt<ClienteBloc>()),
+              BlocProvider(create: (_) => getIt<ProductoBloc>()),
+            ],
+            child: const CrearFacturaPage(),
+          ),
         ),
       );
     }
