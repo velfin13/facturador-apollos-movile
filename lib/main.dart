@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'core/theme/app_theme.dart';
 import 'injection/injection_container.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
 import 'features/clientes/presentation/bloc/cliente_bloc.dart';
@@ -32,10 +33,7 @@ class MyApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Facturador',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
-        ),
+        theme: AppTheme.light,
         home: BlocConsumer<AuthBloc, AuthState>(
           listener: (context, state) {
             debugPrint('AuthState changed to: ${state.runtimeType}');

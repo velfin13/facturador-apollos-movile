@@ -15,19 +15,6 @@ class FacturasPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => getIt<FacturaBloc>()..add(GetFacturasEvent()),
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Facturas'),
-          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-          actions: [
-            Builder(
-              builder: (ctx) => IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Actualizar',
-                onPressed: () => ctx.read<FacturaBloc>().add(GetFacturasEvent()),
-              ),
-            ),
-          ],
-        ),
         body: BlocBuilder<FacturaBloc, FacturaState>(
           buildWhen: (prev, curr) =>
               curr is FacturaLoading ||

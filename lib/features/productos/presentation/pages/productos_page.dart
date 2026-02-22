@@ -65,136 +65,146 @@ class _ProductosPageState extends State<ProductosPage> {
             ..add(GetProductosEvent(activo: _activoFromFiltro(_filtro))),
       child: Builder(
         builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: const Text('Productos'),
-            backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-            actions: [
-              PopupMenuButton<_FiltroEstadoProducto>(
-                initialValue: _filtro,
-                onSelected: (value) {
-                  setState(() => _filtro = value);
-                  context.read<ProductoBloc>().add(
-                    GetProductosEvent(activo: _activoFromFiltro(value)),
-                  );
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(
-                    value: _FiltroEstadoProducto.todos,
-                    child: Text('Todos'),
-                  ),
-                  PopupMenuItem(
-                    value: _FiltroEstadoProducto.activos,
-                    child: Text('Solo activos'),
-                  ),
-                  PopupMenuItem(
-                    value: _FiltroEstadoProducto.inactivos,
-                    child: Text('Solo inactivos'),
-                  ),
-                ],
-                icon: const Icon(Icons.filter_list),
-              ),
-            ],
-          ),
-          body: BlocConsumer<ProductoBloc, ProductoState>(
-          listener: (context, state) {
-            if (state is ProductoStatusUpdated) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text(state.message)));
-            }
-          },
-          builder: (context, state) {
-            if (state is ProductoLoading) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (state is ProductoLoaded) {
-              return RefreshIndicator(
-                onRefresh: () => _onRefresh(context),
-                child: ProductoListWidget(
-                  productos: state.productos,
-                  onStockAjustado: () {
-                    context.read<ProductoBloc>().add(
-                      GetProductosEvent(activo: _activoFromFiltro(_filtro)),
-                    );
-                  },
-                  onEdit: (producto) async {
-                    await _abrirFormularioProducto(
-                      context: context,
-                      producto: producto,
-                    );
-                  },
-                  onToggleStatus: (producto) async {
-                    final activar = !producto.estaActivo;
-                    final confirmed = await _confirmarCambioEstado(
-                      context,
-                      producto.descripcion,
-                      activar,
-                    );
-                    if (!confirmed || !context.mounted) return;
-
-                    context.read<ProductoBloc>().add(
-                      ToggleProductoStatusEvent(
-                        producto: producto,
-                        activar: activar,
-                      ),
-                    );
-                  },
-                ),
-              );
-            } else if (state is ProductoError) {
-              return RefreshIndicator(
-                onRefresh: () => _onRefresh(context),
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
+          body: Column(
+            children: [
+              // Chips de filtro
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: Row(
                   children: [
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.7,
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.error_outline,
-                              size: 60,
-                              color: Colors.red,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Error: ${state.message}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                context.read<ProductoBloc>().add(
-                                  GetProductosEvent(
-                                    activo: _activoFromFiltro(_filtro),
-                                  ),
-                                );
-                              },
-                              child: const Text('Reintentar'),
-                            ),
-                          ],
-                        ),
-                      ),
+                    _FilterChip(
+                      label: 'Todos',
+                      selected: _filtro == _FiltroEstadoProducto.todos,
+                      onTap: () {
+                        setState(() => _filtro = _FiltroEstadoProducto.todos);
+                        context.read<ProductoBloc>().add(GetProductosEvent(activo: ''));
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      label: 'Activos',
+                      selected: _filtro == _FiltroEstadoProducto.activos,
+                      onTap: () {
+                        setState(() => _filtro = _FiltroEstadoProducto.activos);
+                        context.read<ProductoBloc>().add(GetProductosEvent(activo: 'S'));
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    _FilterChip(
+                      label: 'Inactivos',
+                      selected: _filtro == _FiltroEstadoProducto.inactivos,
+                      onTap: () {
+                        setState(() => _filtro = _FiltroEstadoProducto.inactivos);
+                        context.read<ProductoBloc>().add(GetProductosEvent(activo: 'N'));
+                      },
                     ),
                   ],
                 ),
-              );
-            }
-            return RefreshIndicator(
-              onRefresh: () => _onRefresh(context),
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: [
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.7,
-                    child: const Center(child: Text('No hay datos')),
-                  ),
-                ],
               ),
-            );
-          },
+              Expanded(
+                child: BlocConsumer<ProductoBloc, ProductoState>(
+                  listener: (context, state) {
+                    if (state is ProductoStatusUpdated) {
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(state.message)));
+                    }
+                  },
+                  builder: (context, state) {
+                    if (state is ProductoLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    } else if (state is ProductoLoaded) {
+                      return RefreshIndicator(
+                        onRefresh: () => _onRefresh(context),
+                        child: ProductoListWidget(
+                          productos: state.productos,
+                          onStockAjustado: () {
+                            context.read<ProductoBloc>().add(
+                              GetProductosEvent(activo: _activoFromFiltro(_filtro)),
+                            );
+                          },
+                          onEdit: (producto) async {
+                            await _abrirFormularioProducto(
+                              context: context,
+                              producto: producto,
+                            );
+                          },
+                          onToggleStatus: (producto) async {
+                            final activar = !producto.estaActivo;
+                            final confirmed = await _confirmarCambioEstado(
+                              context,
+                              producto.descripcion,
+                              activar,
+                            );
+                            if (!confirmed || !context.mounted) return;
+
+                            context.read<ProductoBloc>().add(
+                              ToggleProductoStatusEvent(
+                                producto: producto,
+                                activar: activar,
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    } else if (state is ProductoError) {
+                      return RefreshIndicator(
+                        onRefresh: () => _onRefresh(context),
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.7,
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.error_outline,
+                                      size: 60,
+                                      color: Colors.red,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Error: ${state.message}',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        context.read<ProductoBloc>().add(
+                                          GetProductosEvent(
+                                            activo: _activoFromFiltro(_filtro),
+                                          ),
+                                        );
+                                      },
+                                      child: const Text('Reintentar'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return RefreshIndicator(
+                      onRefresh: () => _onRefresh(context),
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.7,
+                            child: const Center(child: Text('No hay datos')),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
           floatingActionButton: FloatingActionButton(
             heroTag: 'fab_productos',
@@ -234,5 +244,42 @@ class _ProductosPageState extends State<ProductosPage> {
     );
 
     return result ?? false;
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: selected ? color : Colors.grey.shade400),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            color: selected ? Colors.white : Colors.grey.shade700,
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -13,10 +13,6 @@ class ClientesPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => getIt<ClienteBloc>()..add(GetClientesEvent()),
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Clientes'),
-          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        ),
         body: BlocBuilder<ClienteBloc, ClienteState>(
           builder: (context, state) {
             if (state is ClienteLoading) {
