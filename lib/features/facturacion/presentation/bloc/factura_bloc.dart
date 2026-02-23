@@ -1,7 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:injectable/injectable.dart';
-import '../../../../core/usecases/usecase.dart';
 import '../../domain/entities/factura.dart';
 import '../../domain/usecases/get_facturas.dart';
 import '../../domain/usecases/get_factura.dart';
@@ -16,11 +15,12 @@ class FacturaBloc extends Bloc<FacturaEvent, FacturaState> {
   final GetFactura getFactura;
   final CreateFactura createFactura;
 
-  List<Factura> _allFacturas = [];
-  String _searchQuery = '';
-  DateTime? _fechaDesde;
-  DateTime? _fechaHasta;
-  int _page = 0;
+  List<Factura> _loadedFacturas = [];
+  String _currentSearch = '';
+  DateTime? _currentFechaDesde;
+  DateTime? _currentFechaHasta;
+  int _currentPage = 0;
+  int _total = 0;
   static const int _pageSize = 20;
 
   FacturaBloc({
@@ -36,72 +36,118 @@ class FacturaBloc extends Bloc<FacturaEvent, FacturaState> {
     on<CreateFacturaEvent>(_onCreateFactura);
   }
 
-  List<Factura> get _filtered {
-    var list = _allFacturas;
-    if (_fechaDesde != null) {
-      final desde = DateTime(_fechaDesde!.year, _fechaDesde!.month, _fechaDesde!.day);
-      list = list.where((f) => !f.fecha.isBefore(desde)).toList();
-    }
-    if (_fechaHasta != null) {
-      final hasta = DateTime(_fechaHasta!.year, _fechaHasta!.month, _fechaHasta!.day, 23, 59, 59);
-      list = list.where((f) => !f.fecha.isAfter(hasta)).toList();
-    }
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      list = list.where((f) =>
-        (f.numFact ?? '').toLowerCase().contains(q) ||
-        (f.clienteNombre ?? '').toLowerCase().contains(q) ||
-        f.total.toStringAsFixed(2).contains(q),
-      ).toList();
-    }
-    return list;
-  }
+  GetFacturasParams get _currentParams => GetFacturasParams(
+        search: _currentSearch.isEmpty ? null : _currentSearch,
+        fechaDesde: _currentFechaDesde,
+        fechaHasta: _currentFechaHasta,
+        page: _currentPage,
+        size: _pageSize,
+      );
 
-  FacturaLoaded _buildPagedState() {
-    final filtered = _filtered;
-    final end = ((_page + 1) * _pageSize).clamp(0, filtered.length);
-    return FacturaLoaded(
-      filtered.sublist(0, end),
-      hasMore: end < filtered.length,
-      total: filtered.length,
-    );
-  }
-
-  Future<void> _onGetFacturas(GetFacturasEvent event, Emitter<FacturaState> emit) async {
+  Future<void> _onGetFacturas(
+    GetFacturasEvent event,
+    Emitter<FacturaState> emit,
+  ) async {
     emit(FacturaLoading());
-    _page = 0;
-    final result = await getFacturas(NoParams());
+    _loadedFacturas = [];
+    _currentPage = 0;
+    _currentSearch = '';
+    _currentFechaDesde = null;
+    _currentFechaHasta = null;
+
+    final result = await getFacturas(
+      const GetFacturasParams(page: 0, size: _pageSize),
+    );
     result.fold(
       (failure) => emit(FacturaError(failure.message)),
-      (facturas) {
-        _allFacturas = facturas;
-        emit(_buildPagedState());
+      (paged) {
+        _loadedFacturas = List<Factura>.from(paged.items);
+        _total = paged.total;
+        emit(FacturaLoaded(
+          _loadedFacturas,
+          hasMore: paged.hasMore,
+          total: _total,
+        ));
       },
     );
   }
 
-  void _onSearch(SearchFacturasEvent event, Emitter<FacturaState> emit) {
-    _searchQuery = event.query;
-    _page = 0;
-    emit(_buildPagedState());
+  Future<void> _onSearch(
+    SearchFacturasEvent event,
+    Emitter<FacturaState> emit,
+  ) async {
+    _currentSearch = event.query;
+    _currentPage = 0;
+    _loadedFacturas = [];
+    emit(FacturaLoading());
+
+    final result = await getFacturas(_currentParams);
+    result.fold(
+      (failure) => emit(FacturaError(failure.message)),
+      (paged) {
+        _loadedFacturas = List<Factura>.from(paged.items);
+        _total = paged.total;
+        emit(FacturaLoaded(
+          _loadedFacturas,
+          hasMore: paged.hasMore,
+          total: _total,
+        ));
+      },
+    );
   }
 
-  void _onFilterByDate(FilterByDateRangeEvent event, Emitter<FacturaState> emit) {
-    _fechaDesde = event.desde;
-    _fechaHasta = event.hasta;
-    _page = 0;
-    emit(_buildPagedState());
+  Future<void> _onFilterByDate(
+    FilterByDateRangeEvent event,
+    Emitter<FacturaState> emit,
+  ) async {
+    _currentFechaDesde = event.desde;
+    _currentFechaHasta = event.hasta;
+    _currentPage = 0;
+    _loadedFacturas = [];
+    emit(FacturaLoading());
+
+    final result = await getFacturas(_currentParams);
+    result.fold(
+      (failure) => emit(FacturaError(failure.message)),
+      (paged) {
+        _loadedFacturas = List<Factura>.from(paged.items);
+        _total = paged.total;
+        emit(FacturaLoaded(
+          _loadedFacturas,
+          hasMore: paged.hasMore,
+          total: _total,
+        ));
+      },
+    );
   }
 
-  void _onLoadMore(LoadMoreFacturasEvent event, Emitter<FacturaState> emit) {
+  Future<void> _onLoadMore(
+    LoadMoreFacturasEvent event,
+    Emitter<FacturaState> emit,
+  ) async {
     final current = state;
-    if (current is FacturaLoaded && current.hasMore) {
-      _page++;
-      emit(_buildPagedState());
-    }
+    if (current is! FacturaLoaded || !current.hasMore) return;
+
+    _currentPage++;
+    final result = await getFacturas(_currentParams);
+    result.fold(
+      (failure) => emit(FacturaError(failure.message)),
+      (paged) {
+        _loadedFacturas = [..._loadedFacturas, ...paged.items];
+        _total = paged.total;
+        emit(FacturaLoaded(
+          _loadedFacturas,
+          hasMore: paged.hasMore,
+          total: _total,
+        ));
+      },
+    );
   }
 
-  Future<void> _onGetFacturaDetails(GetFacturaDetailsEvent event, Emitter<FacturaState> emit) async {
+  Future<void> _onGetFacturaDetails(
+    GetFacturaDetailsEvent event,
+    Emitter<FacturaState> emit,
+  ) async {
     final result = await getFactura(event.id);
     result.fold(
       (failure) => emit(FacturaError(failure.message)),
@@ -109,7 +155,10 @@ class FacturaBloc extends Bloc<FacturaEvent, FacturaState> {
     );
   }
 
-  Future<void> _onCreateFactura(CreateFacturaEvent event, Emitter<FacturaState> emit) async {
+  Future<void> _onCreateFactura(
+    CreateFacturaEvent event,
+    Emitter<FacturaState> emit,
+  ) async {
     emit(FacturaCreating());
     final result = await createFactura(event.factura);
     result.fold(

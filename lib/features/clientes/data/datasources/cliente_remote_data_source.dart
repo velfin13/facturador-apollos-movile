@@ -1,12 +1,17 @@
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
+import '../../../../core/models/paged_result.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/network/periodo_manager.dart';
 import '../../../../core/network/api_exceptions.dart';
 import '../models/cliente_model.dart';
 
 abstract class ClienteRemoteDataSource {
-  Future<List<ClienteModel>> getClientes({String? filtro});
+  Future<PagedResult<ClienteModel>> getClientes({
+    String? search,
+    int page = 0,
+    int size = 20,
+  });
   Future<ClienteModel> getCliente(String id);
   Future<ClienteModel> createCliente(ClienteModel cliente);
   Future<ClienteModel> updateCliente(ClienteModel cliente);
@@ -21,23 +26,31 @@ class ClienteRemoteDataSourceImpl implements ClienteRemoteDataSource {
   ClienteRemoteDataSourceImpl(this._dioClient, this._periodoManager);
 
   @override
-  Future<List<ClienteModel>> getClientes({String? filtro}) async {
+  Future<PagedResult<ClienteModel>> getClientes({
+    String? search,
+    int page = 0,
+    int size = 20,
+  }) async {
     try {
       final response = await _dioClient.get(
         '/Clientes',
         queryParameters: {
           'periodo': _periodoManager.periodoActual,
-          if (filtro != null && filtro.isNotEmpty) 'filtro': filtro,
+          if (search != null && search.isNotEmpty) 'filtro': search,
+          'page': page,
+          'size': size,
         },
       );
 
-      // La API devuelve: {success, message, data, errors}
-      if (response.data is Map && response.data['data'] is List) {
-        return (response.data['data'] as List)
-            .map((json) => ClienteModel.fromJson(json as Map<String, dynamic>))
-            .toList();
+      // API devuelve: {success, message, data: {items, total, page, size, hasMore}}
+      if (response.data is Map && response.data['data'] is Map) {
+        final dataMap = response.data['data'] as Map<String, dynamic>;
+        return PagedResult.fromApiData(
+          dataMap,
+          (json) => ClienteModel.fromJson(json),
+        );
       }
-      return [];
+      return PagedResult<ClienteModel>(items: [], total: 0, page: page, size: size);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -50,7 +63,6 @@ class ClienteRemoteDataSourceImpl implements ClienteRemoteDataSource {
         '/Clientes/${_periodoManager.periodoActual}/$id',
       );
 
-      // La API devuelve: {success, message, data, errors}
       if (response.data is Map && response.data['data'] != null) {
         return ClienteModel.fromJson(
           response.data['data'] as Map<String, dynamic>,
@@ -79,7 +91,6 @@ class ClienteRemoteDataSourceImpl implements ClienteRemoteDataSource {
 
       final response = await _dioClient.post('/Clientes', data: data);
 
-      // La API devuelve: {success, message, data, errors}
       if (response.data is Map && response.data['data'] != null) {
         return ClienteModel.fromJson(
           response.data['data'] as Map<String, dynamic>,
@@ -112,7 +123,6 @@ class ClienteRemoteDataSourceImpl implements ClienteRemoteDataSource {
         data: data,
       );
 
-      // La API devuelve: {success, message, data, errors}
       if (response.data is Map && response.data['data'] != null) {
         return ClienteModel.fromJson(
           response.data['data'] as Map<String, dynamic>,

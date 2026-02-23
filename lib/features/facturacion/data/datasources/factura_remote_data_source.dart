@@ -1,16 +1,18 @@
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
+import '../../../../core/models/paged_result.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/network/periodo_manager.dart';
 import '../../../../core/network/api_exceptions.dart';
 import '../models/factura_model.dart';
 
 abstract class FacturaRemoteDataSource {
-  Future<List<FacturaModel>> getFacturas({
+  Future<PagedResult<FacturaModel>> getFacturas({
+    String? search,
     DateTime? fechaDesde,
     DateTime? fechaHasta,
-    String? numFact,
-    String? idCliente,
+    int page = 0,
+    int size = 20,
   });
   Future<FacturaModel> getFactura(String id);
   Future<FacturaModel> createFactura(FacturaModel factura);
@@ -25,36 +27,35 @@ class FacturaRemoteDataSourceImpl implements FacturaRemoteDataSource {
   FacturaRemoteDataSourceImpl(this._dioClient, this._periodoManager);
 
   @override
-  Future<List<FacturaModel>> getFacturas({
+  Future<PagedResult<FacturaModel>> getFacturas({
+    String? search,
     DateTime? fechaDesde,
     DateTime? fechaHasta,
-    String? numFact,
-    String? idCliente,
+    int page = 0,
+    int size = 20,
   }) async {
     try {
       final response = await _dioClient.get(
         '/Ventas',
         queryParameters: {
           'periodo': _periodoManager.periodoActual,
+          if (search != null && search.isNotEmpty) 'search': search,
           if (fechaDesde != null) 'fechaDesde': fechaDesde.toIso8601String(),
           if (fechaHasta != null) 'fechaHasta': fechaHasta.toIso8601String(),
-          if (numFact != null && numFact.isNotEmpty) 'numFact': numFact,
-          if (idCliente != null && idCliente.isNotEmpty) 'idCliente': idCliente,
+          'page': page,
+          'size': size,
         },
       );
 
-      // La API devuelve: {success, message, data, errors}
-      if (response.data is Map && response.data['data'] != null) {
-        final data = response.data['data'];
-        if (data is List) {
-          return data
-              .map(
-                (json) => FacturaModel.fromJson(json as Map<String, dynamic>),
-              )
-              .toList();
-        }
+      // API devuelve: {success, message, data: {items, total, page, size, hasMore}}
+      if (response.data is Map && response.data['data'] is Map) {
+        final dataMap = response.data['data'] as Map<String, dynamic>;
+        return PagedResult.fromApiData(
+          dataMap,
+          (json) => FacturaModel.fromJson(json),
+        );
       }
-      return [];
+      return PagedResult<FacturaModel>(items: [], total: 0, page: page, size: size);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -67,7 +68,6 @@ class FacturaRemoteDataSourceImpl implements FacturaRemoteDataSource {
         '/Ventas/${_periodoManager.periodoActual}/$id',
       );
 
-      // La API devuelve: {success, message, data, errors}
       if (response.data is Map && response.data['data'] != null) {
         return FacturaModel.fromJson(
           response.data['data'] as Map<String, dynamic>,
@@ -114,7 +114,6 @@ class FacturaRemoteDataSourceImpl implements FacturaRemoteDataSource {
 
       final response = await _dioClient.post('/Ventas', data: data);
 
-      // La API devuelve: {success, message, data, errors}
       if (response.data is Map && response.data['data'] != null) {
         return FacturaModel.fromJson(
           response.data['data'] as Map<String, dynamic>,

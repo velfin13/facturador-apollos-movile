@@ -1,7 +1,6 @@
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:injectable/injectable.dart';
-import '../../../../core/usecases/usecase.dart';
 import '../../domain/entities/cliente.dart';
 import '../../domain/usecases/get_clientes.dart';
 import '../../domain/usecases/create_cliente.dart';
@@ -16,10 +15,10 @@ class ClienteBloc extends Bloc<ClienteEvent, ClienteState> {
   final CreateCliente createCliente;
   final UpdateCliente updateCliente;
 
-  List<Cliente> _allClientes = [];
-  String _searchQuery = '';
-  String _filtroActivo = ''; // '' todos, 'S' activos, 'N' inactivos
-  int _page = 0;
+  List<Cliente> _loadedClientes = [];
+  String _currentSearch = '';
+  int _currentPage = 0;
+  int _total = 0;
   static const int _pageSize = 20;
 
   ClienteBloc({
@@ -35,75 +34,107 @@ class ClienteBloc extends Bloc<ClienteEvent, ClienteState> {
     on<UpdateClienteEvent>(_onUpdateCliente);
   }
 
-  List<Cliente> get _filtered {
-    var list = _allClientes;
-    if (_filtroActivo == 'S') {
-      list = list.where((c) => c.activo).toList();
-    } else if (_filtroActivo == 'N') {
-      list = list.where((c) => !c.activo).toList();
-    }
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      list = list
-          .where(
-            (c) =>
-                c.nombre.toLowerCase().contains(q) ||
-                c.ruc.toLowerCase().contains(q) ||
-                (c.email ?? '').toLowerCase().contains(q) ||
-                (c.ciudad ?? '').toLowerCase().contains(q),
-          )
-          .toList();
-    }
-    return list;
-  }
-
-  ClienteLoaded _buildPagedState() {
-    final filtered = _filtered;
-    final end = ((_page + 1) * _pageSize).clamp(0, filtered.length);
-    return ClienteLoaded(
-      filtered.sublist(0, end),
-      hasMore: end < filtered.length,
-      total: filtered.length,
-    );
-  }
-
   Future<void> _onGetClientes(
     GetClientesEvent event,
     Emitter<ClienteState> emit,
   ) async {
     emit(ClienteLoading());
-    _page = 0;
-    final result = await getClientes(NoParams());
+    _loadedClientes = [];
+    _currentPage = 0;
+    _currentSearch = '';
+
+    final result = await getClientes(
+      const GetClientesParams(page: 0, size: _pageSize),
+    );
     result.fold(
       (failure) => emit(ClienteError(failure.message)),
-      (clientes) {
-        _allClientes = clientes;
-        emit(_buildPagedState());
+      (paged) {
+        _loadedClientes = List<Cliente>.from(paged.items);
+        _total = paged.total;
+        emit(ClienteLoaded(
+          _loadedClientes,
+          hasMore: paged.hasMore,
+          total: _total,
+        ));
       },
     );
   }
 
-  void _onSearch(SearchClientesEvent event, Emitter<ClienteState> emit) {
-    _searchQuery = event.query;
-    _page = 0;
-    emit(_buildPagedState());
+  Future<void> _onSearch(
+    SearchClientesEvent event,
+    Emitter<ClienteState> emit,
+  ) async {
+    _currentSearch = event.query;
+    _currentPage = 0;
+    _loadedClientes = [];
+    emit(ClienteLoading());
+
+    final result = await getClientes(GetClientesParams(
+      search: _currentSearch.isEmpty ? null : _currentSearch,
+      page: 0,
+      size: _pageSize,
+    ));
+    result.fold(
+      (failure) => emit(ClienteError(failure.message)),
+      (paged) {
+        _loadedClientes = List<Cliente>.from(paged.items);
+        _total = paged.total;
+        emit(ClienteLoaded(
+          _loadedClientes,
+          hasMore: paged.hasMore,
+          total: _total,
+        ));
+      },
+    );
   }
 
   void _onFilterStatus(
     FilterClienteStatusEvent event,
     Emitter<ClienteState> emit,
   ) {
-    _filtroActivo = event.activo;
-    _page = 0;
-    emit(_buildPagedState());
+    // Filtro visual sobre los elementos ya cargados (el SP devuelve solo activos).
+    final current = state;
+    if (current is ClienteLoaded) {
+      final filtered = event.activo.isEmpty
+          ? _loadedClientes
+          : _loadedClientes
+              .where(
+                (c) => event.activo == 'S' ? c.activo : !c.activo,
+              )
+              .toList();
+      emit(ClienteLoaded(
+        filtered,
+        hasMore: current.hasMore,
+        total: current.total,
+      ));
+    }
   }
 
-  void _onLoadMore(LoadMoreClientesEvent event, Emitter<ClienteState> emit) {
+  Future<void> _onLoadMore(
+    LoadMoreClientesEvent event,
+    Emitter<ClienteState> emit,
+  ) async {
     final current = state;
-    if (current is ClienteLoaded && current.hasMore) {
-      _page++;
-      emit(_buildPagedState());
-    }
+    if (current is! ClienteLoaded || !current.hasMore) return;
+
+    _currentPage++;
+    final result = await getClientes(GetClientesParams(
+      search: _currentSearch.isEmpty ? null : _currentSearch,
+      page: _currentPage,
+      size: _pageSize,
+    ));
+    result.fold(
+      (failure) => emit(ClienteError(failure.message)),
+      (paged) {
+        _loadedClientes = [..._loadedClientes, ...paged.items];
+        _total = paged.total;
+        emit(ClienteLoaded(
+          _loadedClientes,
+          hasMore: paged.hasMore,
+          total: _total,
+        ));
+      },
+    );
   }
 
   Future<void> _onCreateCliente(
@@ -111,7 +142,9 @@ class ClienteBloc extends Bloc<ClienteEvent, ClienteState> {
     Emitter<ClienteState> emit,
   ) async {
     emit(ClienteCreating());
-    final result = await createCliente(CreateClienteParams(cliente: event.cliente));
+    final result = await createCliente(
+      CreateClienteParams(cliente: event.cliente),
+    );
     result.fold(
       (failure) => emit(ClienteError(failure.message)),
       (cliente) => emit(ClienteCreated(cliente)),
@@ -123,18 +156,24 @@ class ClienteBloc extends Bloc<ClienteEvent, ClienteState> {
     Emitter<ClienteState> emit,
   ) async {
     emit(ClienteUpdating());
-    final result = await updateCliente(UpdateClienteParams(cliente: event.cliente));
+    final result = await updateCliente(
+      UpdateClienteParams(cliente: event.cliente),
+    );
     result.fold(
       (failure) => emit(ClienteError(failure.message)),
       (updatedCliente) {
-        final idx = _allClientes.indexWhere((c) => c.id == updatedCliente.id);
+        final idx = _loadedClientes.indexWhere((c) => c.id == updatedCliente.id);
         if (idx != -1) {
-          final updated = List<Cliente>.from(_allClientes);
+          final updated = List<Cliente>.from(_loadedClientes);
           updated[idx] = updatedCliente;
-          _allClientes = updated;
+          _loadedClientes = updated;
         }
         emit(ClienteUpdated(updatedCliente));
-        emit(_buildPagedState());
+        emit(ClienteLoaded(
+          _loadedClientes,
+          hasMore: (_currentPage + 1) * _pageSize < _total,
+          total: _total,
+        ));
       },
     );
   }

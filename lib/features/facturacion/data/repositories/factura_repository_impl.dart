@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:injectable/injectable.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/models/paged_result.dart';
 import '../../domain/entities/factura.dart';
 import '../../domain/repositories/factura_repository.dart';
 import '../datasources/factura_local_data_source.dart';
@@ -18,12 +19,27 @@ class FacturaRepositoryImpl implements FacturaRepository {
   });
 
   @override
-  Future<Either<Failure, List<Factura>>> getFacturas() async {
+  Future<Either<Failure, PagedResult<Factura>>> getFacturas({
+    String? search,
+    DateTime? fechaDesde,
+    DateTime? fechaHasta,
+    int page = 0,
+    int size = 20,
+  }) async {
     try {
-      final facturas = await remoteDataSource.getFacturas();
-      // Opcionalmente cachear
-      // await localDataSource.cacheFacturas(facturas);
-      return Right(facturas);
+      final paged = await remoteDataSource.getFacturas(
+        search: search,
+        fechaDesde: fechaDesde,
+        fechaHasta: fechaHasta,
+        page: page,
+        size: size,
+      );
+      return Right(PagedResult<Factura>(
+        items: paged.items,
+        total: paged.total,
+        page: paged.page,
+        size: paged.size,
+      ));
     } catch (e) {
       return Left(ServerFailure(e.toString()));
     }

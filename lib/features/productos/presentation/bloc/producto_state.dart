@@ -13,11 +13,17 @@ class ProductoLoading extends ProductoState {}
 
 class ProductoLoaded extends ProductoState {
   final List<Producto> productos;
+  final bool hasMore;
+  final int total;
 
-  const ProductoLoaded(this.productos);
+  const ProductoLoaded(
+    this.productos, {
+    this.hasMore = false,
+    this.total = 0,
+  });
 
   @override
-  List<Object> get props => [productos];
+  List<Object> get props => [productos, hasMore, total];
 }
 
 class ProductoError extends ProductoState {

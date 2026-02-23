@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:injectable/injectable.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/models/paged_result.dart';
 import '../../domain/entities/cliente.dart';
 import '../../domain/repositories/cliente_repository.dart';
 import '../datasources/cliente_remote_data_source.dart';
@@ -13,10 +14,23 @@ class ClienteRepositoryImpl implements ClienteRepository {
   ClienteRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<Either<Failure, List<Cliente>>> getClientes() async {
+  Future<Either<Failure, PagedResult<Cliente>>> getClientes({
+    String? search,
+    int page = 0,
+    int size = 20,
+  }) async {
     try {
-      final clientes = await remoteDataSource.getClientes();
-      return Right(clientes);
+      final paged = await remoteDataSource.getClientes(
+        search: search,
+        page: page,
+        size: size,
+      );
+      return Right(PagedResult<Cliente>(
+        items: paged.items,
+        total: paged.total,
+        page: paged.page,
+        size: paged.size,
+      ));
     } catch (e) {
       return Left(ServerFailure(e.toString()));
     }

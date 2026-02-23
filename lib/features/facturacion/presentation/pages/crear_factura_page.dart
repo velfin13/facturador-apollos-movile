@@ -141,7 +141,8 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
     }
   }
 
-  Future<void> _agregarItem(List<Producto> productos, {int? editIndex}) async {
+  Future<void> _agregarItem({int? editIndex}) async {
+    final productoBloc = context.read<ProductoBloc>();
     final item = editIndex != null ? _items[editIndex] : null;
     final result = await showModalBottomSheet<ItemFacturaTemp>(
       context: context,
@@ -149,9 +150,9 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => _AgregarItemSheet(
-        productos: productos,
-        itemExistente: item,
+      builder: (ctx) => BlocProvider.value(
+        value: productoBloc,
+        child: _AgregarItemSheet(itemExistente: item),
       ),
     );
     if (result != null && mounted) {
@@ -294,10 +295,6 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         ),
         body: BlocBuilder<ProductoBloc, ProductoState>(
           builder: (context, productoState) {
-            final productos = productoState is ProductoLoaded
-                ? productoState.productos
-                : <Producto>[];
-
             return Column(
               children: [
                 Expanded(
@@ -314,7 +311,6 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                         _buildProductosSection(
                           context,
                           theme,
-                          productos,
                           productoState,
                         ),
                         const SizedBox(height: 12),
@@ -469,7 +465,6 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
   Widget _buildProductosSection(
     BuildContext context,
     ThemeData theme,
-    List<Producto> productos,
     ProductoState productoState,
   ) {
     final loading = productoState is ProductoLoading;
@@ -478,9 +473,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       icon: Icons.inventory_2_outlined,
       title: 'Productos',
       action: FilledButton.tonalIcon(
-        onPressed: (loading || productos.isEmpty)
-            ? null
-            : () => _agregarItem(productos),
+        onPressed: loading ? null : () => _agregarItem(),
         icon: const Icon(Icons.add, size: 18),
         label: const Text('Agregar'),
         style: FilledButton.styleFrom(
@@ -522,7 +515,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
                 _items.length,
                 (i) => _ItemCard(
                   item: _items[i],
-                  onEdit: () => _agregarItem(productos, editIndex: i),
+                  onEdit: () => _agregarItem(editIndex: i),
                   onDelete: () => setState(() => _items.removeAt(i)),
                 ),
               ),
@@ -1326,15 +1319,13 @@ class _ClienteSelectorSheetState extends State<_ClienteSelectorSheet> {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // _AgregarItemSheet — product add / edit bottom sheet
-// Uses local filtering with ListView.builder (virtualized) for thousands of
-// products: only visible items are rendered.
+// Uses server-side search via ProductoBloc with debounce + load-more on scroll.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _AgregarItemSheet extends StatefulWidget {
-  final List<Producto> productos;
   final ItemFacturaTemp? itemExistente;
 
-  const _AgregarItemSheet({required this.productos, this.itemExistente});
+  const _AgregarItemSheet({this.itemExistente});
 
   @override
   State<_AgregarItemSheet> createState() => _AgregarItemSheetState();
@@ -1345,51 +1336,40 @@ class _AgregarItemSheetState extends State<_AgregarItemSheet> {
   final _cantidadController = TextEditingController(text: '1');
   final _precioController = TextEditingController();
   Producto? _productoSeleccionado;
-  List<Producto> _filtrados = [];
+  Timer? _debounce;
+  late final ProductoBloc _productoBloc;
 
   @override
   void initState() {
     super.initState();
-    _filtrados = widget.productos;
-    _searchController.addListener(_filtrar);
-
-    // Edit mode: pre-fill
+    _productoBloc = context.read<ProductoBloc>();
     final item = widget.itemExistente;
     if (item != null) {
       _cantidadController.text = item.cantidad.toString();
       _precioController.text = item.precioUnitario.toStringAsFixed(2);
-      final prod =
-          widget.productos.where((p) => p.id == item.productoId).firstOrNull;
-      if (prod != null) {
-        _productoSeleccionado = prod;
-        _searchController.text = prod.descripcion;
-        _filtrar();
-      }
+      _searchController.text = item.descripcion;
+      _productoBloc.add(SearchProductosEvent(item.descripcion));
+    } else {
+      _productoBloc.add(GetProductosEvent());
     }
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_filtrar);
+    _debounce?.cancel();
     _searchController.dispose();
     _cantidadController.dispose();
     _precioController.dispose();
+    _productoBloc.add(GetProductosEvent());
     super.dispose();
   }
 
-  void _filtrar() {
-    final q = _searchController.text.toLowerCase();
-    setState(() {
-      _filtrados = q.isEmpty
-          ? widget.productos
-          : widget.productos
-              .where(
-                (p) =>
-                    p.descripcion.toLowerCase().contains(q) ||
-                    (p.barra ?? '').toLowerCase().contains(q),
-              )
-              .toList();
-    });
+  void _onSearch(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(
+      const Duration(milliseconds: 300),
+      () => _productoBloc.add(SearchProductosEvent(value)),
+    );
   }
 
   void _seleccionarProducto(Producto p) {
@@ -1449,10 +1429,6 @@ class _AgregarItemSheetState extends State<_AgregarItemSheet> {
     final theme = Theme.of(context);
     final isEdit = widget.itemExistente != null;
     final mediaQuery = MediaQuery.of(context);
-    // viewInsets.bottom = keyboard height
-    // padding.bottom    = system navigation bar height
-    final bottomInset =
-        mediaQuery.viewInsets.bottom + mediaQuery.padding.bottom;
 
     return Padding(
       padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
@@ -1479,22 +1455,29 @@ class _AgregarItemSheetState extends State<_AgregarItemSheet> {
             // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-              child: Row(
-                children: [
-                  Text(
-                    isEdit ? 'Editar Producto' : 'Agregar Producto',
-                    style: theme.textTheme.titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const Spacer(),
-                  if (_productoSeleccionado == null)
-                    Text(
-                      '${_filtrados.length} productos',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.outline,
+              child: BlocBuilder<ProductoBloc, ProductoState>(
+                builder: (context, state) {
+                  final total = state is ProductoLoaded ? state.total : 0;
+                  final showing =
+                      state is ProductoLoaded ? state.productos.length : 0;
+                  return Row(
+                    children: [
+                      Text(
+                        isEdit ? 'Editar Producto' : 'Agregar Producto',
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                    ),
-                ],
+                      const Spacer(),
+                      if (_productoSeleccionado == null && total > 0)
+                        Text(
+                          '$showing de $total',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
             ),
             const SizedBox(height: 10),
@@ -1513,9 +1496,14 @@ class _AgregarItemSheetState extends State<_AgregarItemSheet> {
                       onPressed: () {
                         _searchController.clear();
                         setState(() => _productoSeleccionado = null);
+                        _productoBloc.add(GetProductosEvent());
                       },
                     ),
                 ],
+                onChanged: (v) {
+                  setState(() {});
+                  _onSearch(v);
+                },
                 elevation: const WidgetStatePropertyAll(0),
                 backgroundColor: WidgetStatePropertyAll(
                   theme.colorScheme.surfaceContainerLow,
@@ -1544,8 +1532,7 @@ class _AgregarItemSheetState extends State<_AgregarItemSheet> {
                         .withValues(alpha: 0.4),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color:
-                          theme.colorScheme.primary.withValues(alpha: 0.4),
+                      color: theme.colorScheme.primary.withValues(alpha: 0.4),
                     ),
                   ),
                   child: Row(
@@ -1623,64 +1610,116 @@ class _AgregarItemSheetState extends State<_AgregarItemSheet> {
 
             Divider(height: 1, color: theme.colorScheme.outlineVariant),
 
-            // Product list — ListView.builder is virtualized: only renders
-            // visible items, so thousands of products scroll without issues.
+            // Product list — server-side search + load more on scroll
             Expanded(
-              child: _filtrados.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Sin resultados',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.outline,
+              child: BlocBuilder<ProductoBloc, ProductoState>(
+                builder: (context, state) {
+                  if (state is ProductoLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (state is ProductoLoaded) {
+                    final productos = state.productos;
+
+                    // Auto-select in edit mode when product is found in list
+                    if (_productoSeleccionado == null &&
+                        widget.itemExistente != null) {
+                      final match = productos
+                          .where(
+                              (p) => p.id == widget.itemExistente!.productoId)
+                          .firstOrNull;
+                      if (match != null) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) setState(() => _productoSeleccionado = match);
+                        });
+                      }
+                    }
+
+                    if (productos.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'Sin resultados',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
                         ),
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: scrollController,
-                      itemCount: _filtrados.length,
-                      itemBuilder: (ctx, i) {
-                        final p = _filtrados[i];
-                        final selected = _productoSeleccionado?.id == p.id;
-                        return ListTile(
-                          dense: true,
-                          selected: selected,
-                          selectedTileColor: theme.colorScheme.primaryContainer
-                              .withValues(alpha: 0.3),
-                          leading: selected
-                              ? Icon(
-                                  Icons.check_circle,
-                                  color: theme.colorScheme.primary,
-                                  size: 20,
-                                )
-                              : Icon(
-                                  Icons.circle_outlined,
-                                  color: theme.colorScheme.outlineVariant,
-                                  size: 20,
-                                ),
-                          title: Text(
-                            p.descripcion,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: selected
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '\$${p.precio.toStringAsFixed(2)}'
-                            '${p.tieneIva ? ' + IVA' : ''}'
-                            '${p.barra != null ? ' · ${p.barra}' : ''}',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                          onTap: () => _seleccionarProducto(p),
-                        );
+                      );
+                    }
+
+                    return NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification is ScrollEndNotification &&
+                            notification.metrics.extentAfter < 200 &&
+                            state.hasMore) {
+                          context
+                              .read<ProductoBloc>()
+                              .add(LoadMoreProductosEvent());
+                        }
+                        return false;
                       },
-                    ),
+                      child: ListView.builder(
+                        controller: scrollController,
+                        itemCount: productos.length + (state.hasMore ? 1 : 0),
+                        itemBuilder: (ctx, i) {
+                          if (i == productos.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            );
+                          }
+                          final p = productos[i];
+                          final selected = _productoSeleccionado?.id == p.id;
+                          return ListTile(
+                            dense: true,
+                            selected: selected,
+                            selectedTileColor: theme
+                                .colorScheme.primaryContainer
+                                .withValues(alpha: 0.3),
+                            leading: selected
+                                ? Icon(
+                                    Icons.check_circle,
+                                    color: theme.colorScheme.primary,
+                                    size: 20,
+                                  )
+                                : Icon(
+                                    Icons.circle_outlined,
+                                    color: theme.colorScheme.outlineVariant,
+                                    size: 20,
+                                  ),
+                            title: Text(
+                              p.descripcion,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: selected
+                                    ? FontWeight.w600
+                                    : FontWeight.normal,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '\$${p.precio.toStringAsFixed(2)}'
+                              '${p.tieneIva ? ' + IVA' : ''}'
+                              '${p.barra != null ? ' · ${p.barra}' : ''}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            onTap: () => _seleccionarProducto(p),
+                          );
+                        },
+                      ),
+                    );
+                  }
+
+                  return const SizedBox.shrink();
+                },
+              ),
             ),
 
             // Bottom bar: qty / price / confirm
             Container(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + mediaQuery.padding.bottom),
+              padding: EdgeInsets.fromLTRB(
+                  16, 12, 16, 16 + mediaQuery.padding.bottom),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
                 border: Border(

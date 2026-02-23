@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:injectable/injectable.dart';
 import '../../../../core/error/failures.dart';
+import '../../../../core/models/paged_result.dart';
 import '../../domain/entities/producto.dart';
 import '../../domain/repositories/producto_repository.dart';
 import '../datasources/producto_remote_data_source.dart';
@@ -13,10 +14,25 @@ class ProductoRepositoryImpl implements ProductoRepository {
   ProductoRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<Either<Failure, List<Producto>>> getProductos({String? activo}) async {
+  Future<Either<Failure, PagedResult<Producto>>> getProductos({
+    String? filtro,
+    String? activo,
+    int page = 0,
+    int size = 20,
+  }) async {
     try {
-      final productos = await remoteDataSource.getProductos(activo: activo);
-      return Right(productos);
+      final paged = await remoteDataSource.getProductos(
+        filtro: filtro,
+        activo: activo,
+        page: page,
+        size: size,
+      );
+      return Right(PagedResult<Producto>(
+        items: paged.items,
+        total: paged.total,
+        page: paged.page,
+        size: paged.size,
+      ));
     } catch (e) {
       return Left(ServerFailure(e.toString()));
     }

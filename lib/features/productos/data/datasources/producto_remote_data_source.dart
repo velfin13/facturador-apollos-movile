@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
+import '../../../../core/models/paged_result.dart';
 import '../../../../core/network/api_config.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/network/periodo_manager.dart';
@@ -7,9 +8,11 @@ import '../../../../core/network/api_exceptions.dart';
 import '../models/producto_model.dart';
 
 abstract class ProductoRemoteDataSource {
-  Future<List<ProductoModel>> getProductos({
+  Future<PagedResult<ProductoModel>> getProductos({
     String? filtro,
-    String? activo = '',
+    String? activo,
+    int page = 0,
+    int size = 20,
   });
   Future<ProductoModel> getProducto(String id);
   Future<ProductoModel> createProducto(ProductoModel producto);
@@ -25,9 +28,11 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
   ProductoRemoteDataSourceImpl(this._dioClient, this._periodoManager);
 
   @override
-  Future<List<ProductoModel>> getProductos({
+  Future<PagedResult<ProductoModel>> getProductos({
     String? filtro,
-    String? activo = '',
+    String? activo,
+    int page = 0,
+    int size = 20,
   }) async {
     try {
       final response = await _dioClient.get(
@@ -36,20 +41,20 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
           'periodo': _periodoManager.periodoActual,
           if (filtro != null && filtro.isNotEmpty) 'filtro': filtro,
           if (activo != null) 'activo': activo,
+          'page': page,
+          'size': size,
         },
       );
 
-      if (response.data is Map && response.data['data'] != null) {
-        final data = response.data['data'];
-        if (data is List) {
-          return data
-              .map(
-                (json) => ProductoModel.fromJson(json as Map<String, dynamic>),
-              )
-              .toList();
-        }
+      // API devuelve: {success, message, data: {items, total, page, size, hasMore}}
+      if (response.data is Map && response.data['data'] is Map) {
+        final dataMap = response.data['data'] as Map<String, dynamic>;
+        return PagedResult.fromApiData(
+          dataMap,
+          (json) => ProductoModel.fromJson(json),
+        );
       }
-      return [];
+      return PagedResult<ProductoModel>(items: [], total: 0, page: page, size: size);
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -77,7 +82,6 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
   Future<ProductoModel> createProducto(ProductoModel producto) async {
     try {
       final data = producto.toJson();
-      // Agregar el periodo actual si no viene
       data['idSysPeriodo'] =
           producto.idSysPeriodo ?? _periodoManager.periodoActual;
 
@@ -97,9 +101,6 @@ class ProductoRemoteDataSourceImpl implements ProductoRemoteDataSource {
   @override
   Future<ProductoModel> updateProducto(ProductoModel producto) async {
     try {
-      // El backend toma periodo/id desde la URL en el PUT.
-      // Evitamos enviar esos campos porque en UpdateProductCommand
-      // IdSysPeriodo es string y puede fallar si llega como número.
       final data = <String, dynamic>{
         'descripcion': producto.descripcion,
         'iva': producto.iva,
