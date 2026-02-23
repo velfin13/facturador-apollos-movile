@@ -16,6 +16,7 @@ import 'package:injectable/injectable.dart' as _i526;
 import 'package:shared_preferences/shared_preferences.dart' as _i460;
 
 import '../core/auth/auth_token_manager.dart' as _i96;
+import '../core/auth/session_expired_notifier.dart' as _i843;
 import '../core/auth/token_storage.dart' as _i313;
 import '../core/business/business_setup_service.dart' as _i465;
 import '../core/network/dio_client.dart' as _i393;
@@ -74,6 +75,10 @@ extension GetItInjectableX on _i174.GetIt {
       () => registerModule.prefs,
       preResolve: true,
     );
+    gh.lazySingleton<_i843.SessionExpiredNotifier>(
+      () => _i843.SessionExpiredNotifier(),
+      dispose: (i) => i.dispose(),
+    );
     gh.lazySingleton<_i558.FlutterSecureStorage>(
       () => registerModule.secureStorage,
     );
@@ -100,7 +105,10 @@ extension GetItInjectableX on _i174.GetIt {
       ),
     );
     gh.lazySingleton<_i393.DioClient>(
-      () => _i393.DioClient(gh<_i96.AuthTokenManager>()),
+      () => _i393.DioClient(
+        gh<_i96.AuthTokenManager>(),
+        gh<_i843.SessionExpiredNotifier>(),
+      ),
     );
     gh.lazySingleton<_i869.AuthRepository>(
       () => _i570.AuthRepositoryImpl(

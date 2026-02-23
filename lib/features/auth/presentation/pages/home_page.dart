@@ -23,6 +23,22 @@ enum PaymentFlowStage {
   error,
 }
 
+enum _StepStatus { pending, active, done }
+
+class _PaymentDialogData {
+  final PaymentFlowStage stage;
+  final int step; // 0=verificando paypal, 1=activando plan, 2=listo
+  final String message;
+  final Map<String, dynamic>? subscriptionData;
+
+  const _PaymentDialogData({
+    required this.stage,
+    required this.step,
+    required this.message,
+    this.subscriptionData,
+  });
+}
+
 class HomePage extends StatefulWidget {
   final Usuario usuario;
 
@@ -39,17 +55,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _awaitingSubscriptionCheckout = false;
   String? _pendingPayPalOrderId;
   String? _processingPlanId;
+  double? _pendingPlanMonthly;
   Future<_SubscriptionViewData>? _subscriptionFuture;
+  late final ValueNotifier<_PaymentDialogData> _paymentNotifier;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _paymentNotifier = ValueNotifier(
+      const _PaymentDialogData(
+        stage: PaymentFlowStage.idle,
+        step: 0,
+        message: '',
+      ),
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _paymentNotifier.dispose();
     super.dispose();
   }
 
@@ -64,7 +90,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<_NavItem> get _navItems {
     final items = <_NavItem>[];
 
-    // Dashboard - todos los roles
     items.add(
       _NavItem(
         label: 'Inicio',
@@ -74,7 +99,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ),
     );
 
-    // Facturas - admin y cliente
     if (widget.usuario.esAdmin || widget.usuario.esCliente) {
       items.add(
         const _NavItem(
@@ -86,7 +110,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
     }
 
-    // Nueva Factura - admin y cliente
     if (widget.usuario.esAdmin || widget.usuario.esCliente) {
       items.add(
         _NavItem(
@@ -104,7 +127,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
     }
 
-    // Clientes - admin y cliente
     if (widget.usuario.esAdmin || widget.usuario.esCliente) {
       items.add(
         const _NavItem(
@@ -116,7 +138,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
     }
 
-    // Productos - admin y cliente
     if (widget.usuario.esAdmin || widget.usuario.esCliente) {
       items.add(
         const _NavItem(
@@ -526,7 +547,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           : null)
                       ?.toString() ??
                   '-';
-              final showFlowStatus = _subscriptionFlowStage != PaymentFlowStage.idle;
 
               return Stack(
                 children: [
@@ -571,35 +591,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           ),
                         ),
                       ),
-                      if (showFlowStatus) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _subscriptionFlowMessage,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onPrimaryContainer,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              LinearProgressIndicator(
-                                value: _progressForStage(_subscriptionFlowStage),
-                                color: theme.colorScheme.onPrimaryContainer,
-                                backgroundColor: theme.colorScheme.onPrimaryContainer.withOpacity(0.3),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
                       const SizedBox(height: 14),
                       Text(
                         'Actualizar plan',
@@ -711,7 +702,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   if (_isPlanFlowRunning)
                     Positioned.fill(
                       child: Container(
-                        color: Colors.black.withOpacity(0.4),
+                        color: Colors.black.withValues(alpha: 0.4),
                         child: Center(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -763,6 +754,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     setState(() {
       _processingPlanId = planId;
+      _pendingPlanMonthly = monthly;
     });
     _updateSubscriptionFlow(
       PaymentFlowStage.creating,
@@ -854,19 +846,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
       setState(() {
         _processingPlanId = null;
+        _pendingPlanMonthly = null;
       });
     } catch (_) {
       if (!context.mounted) return;
       const message = 'No se pudo abrir el navegador';
-      _updateSubscriptionFlow(
-        PaymentFlowStage.error,
-        message,
-      );
+      _updateSubscriptionFlow(PaymentFlowStage.error, message);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text(message)),
       );
       setState(() {
         _processingPlanId = null;
+        _pendingPlanMonthly = null;
       });
     }
   }
@@ -884,26 +875,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _subscriptionFlowStage = PaymentFlowStage.idle;
           _subscriptionFlowMessage = '';
           _processingPlanId = null;
+          _pendingPlanMonthly = null;
         });
       });
-    }
-  }
-
-  double _progressForStage(PaymentFlowStage stage) {
-    switch (stage) {
-      case PaymentFlowStage.creating:
-        return 0.25;
-      case PaymentFlowStage.awaitingApproval:
-        return 0.5;
-      case PaymentFlowStage.confirming:
-        return 0.75;
-      case PaymentFlowStage.success:
-        return 1;
-      case PaymentFlowStage.error:
-        return 1;
-      case PaymentFlowStage.idle:
-      default:
-        return 0;
     }
   }
 
@@ -915,9 +889,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _verifySubscriptionAfterCheckout() async {
     if (!_awaitingSubscriptionCheckout) return;
     _awaitingSubscriptionCheckout = false;
-    _updateSubscriptionFlow(
-      PaymentFlowStage.confirming,
-      'Validando el pago...',
+
+    _paymentNotifier.value = const _PaymentDialogData(
+      stage: PaymentFlowStage.confirming,
+      step: 0,
+      message: 'Verificando tu pago con PayPal...',
+    );
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      builder: (_) => _PaymentProcessingDialog(notifier: _paymentNotifier),
     );
 
     try {
@@ -927,38 +911,467 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           data: {'orderId': _pendingPayPalOrderId},
         );
       }
+
+      _paymentNotifier.value = const _PaymentDialogData(
+        stage: PaymentFlowStage.confirming,
+        step: 1,
+        message: 'Activando tu suscripción...',
+      );
+
       final current = await _getCurrentSubscription();
       final status = (current['status'] ?? '').toString();
-      final plan = (current['subscriptionType'] ?? '').toString();
       final isActive = status.toUpperCase().contains('ACTIV');
-      final messageSource = isActive
-          ? 'Pago confirmado. Plan activo: ${plan.isEmpty ? 'N/D' : plan}'
-          : 'No se pudo activar el plan. Estado: $status';
+
+      final subscriptionData = <String, dynamic>{
+        ...current,
+        if (_pendingPlanMonthly != null) 'amountCharged': _pendingPlanMonthly,
+      };
+
+      _paymentNotifier.value = _PaymentDialogData(
+        stage: isActive ? PaymentFlowStage.success : PaymentFlowStage.error,
+        step: 2,
+        message: isActive
+            ? '¡Tu plan ha sido activado exitosamente!'
+            : 'El plan no pudo activarse. Estado: $status',
+        subscriptionData: isActive ? subscriptionData : null,
+      );
 
       if (!mounted) return;
-      _updateSubscriptionFlow(
-        isActive ? PaymentFlowStage.success : PaymentFlowStage.error,
-        messageSource,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(messageSource)),
-      );
+      setState(() {
+        _subscriptionFlowStage =
+            isActive ? PaymentFlowStage.success : PaymentFlowStage.error;
+        _subscriptionFlowMessage =
+            isActive ? 'Pago confirmado' : 'No se pudo activar el plan';
+        _processingPlanId = null;
+        _pendingPlanMonthly = null;
+      });
     } catch (_) {
+      _paymentNotifier.value = const _PaymentDialogData(
+        stage: PaymentFlowStage.error,
+        step: 2,
+        message: 'No se pudo validar el pago con el servidor.',
+      );
       if (!mounted) return;
-      _updateSubscriptionFlow(
-        PaymentFlowStage.error,
-        'No se pudo validar el pago',
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo validar el pago al regresar'),
-        ),
-      );
+      setState(() {
+        _subscriptionFlowStage = PaymentFlowStage.error;
+        _subscriptionFlowMessage = 'No se pudo validar el pago';
+        _processingPlanId = null;
+        _pendingPlanMonthly = null;
+      });
     } finally {
       _pendingPayPalOrderId = null;
     }
   }
 }
+
+// ─── Dialog de procesamiento de pago ─────────────────────────────────────────
+
+class _PaymentProcessingDialog extends StatefulWidget {
+  final ValueNotifier<_PaymentDialogData> notifier;
+
+  const _PaymentProcessingDialog({required this.notifier});
+
+  @override
+  State<_PaymentProcessingDialog> createState() =>
+      _PaymentProcessingDialogState();
+}
+
+class _PaymentProcessingDialogState extends State<_PaymentProcessingDialog>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _iconController;
+  late final Animation<double> _iconScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _iconController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    );
+    _iconScale = CurvedAnimation(
+      parent: _iconController,
+      curve: Curves.elasticOut,
+    );
+    widget.notifier.addListener(_onUpdate);
+  }
+
+  void _onUpdate() {
+    if (!mounted) return;
+    setState(() {});
+    final state = widget.notifier.value;
+    if ((state.stage == PaymentFlowStage.success ||
+            state.stage == PaymentFlowStage.error) &&
+        !_iconController.isAnimating &&
+        _iconController.value == 0) {
+      _iconController.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.notifier.removeListener(_onUpdate);
+    _iconController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final state = widget.notifier.value;
+    final isSuccess = state.stage == PaymentFlowStage.success;
+    final isError = state.stage == PaymentFlowStage.error;
+    final isDone = isSuccess || isError;
+
+    return PopScope(
+      canPop: isDone,
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 48),
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(28, 36, 28, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildIcon(theme, isSuccess, isError),
+              const SizedBox(height: 20),
+              Text(
+                _titleText(isSuccess, isError),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isSuccess
+                      ? const Color(0xFF2E7D32)
+                      : isError
+                          ? theme.colorScheme.error
+                          : theme.colorScheme.onSurface,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                state.message,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              if (!isDone) ...[
+                const SizedBox(height: 28),
+                _buildSteps(theme, state.step),
+                const SizedBox(height: 20),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    minHeight: 4,
+                    color: theme.colorScheme.primary,
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                  ),
+                ),
+              ],
+              if (isSuccess && state.subscriptionData != null) ...[
+                const SizedBox(height: 24),
+                _buildSuccessCard(theme, state.subscriptionData!),
+              ],
+              if (isError) ...[
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.errorContainer.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Puedes intentar nuevamente desde la sección de planes.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+              if (isDone) ...[
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: isError
+                        ? FilledButton.styleFrom(
+                            backgroundColor: theme.colorScheme.error,
+                          )
+                        : null,
+                    child: Text(isSuccess ? 'Continuar' : 'Cerrar'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _titleText(bool isSuccess, bool isError) {
+    if (isSuccess) return '¡Suscripción activada!';
+    if (isError) return 'Hubo un problema';
+    return 'Procesando pago';
+  }
+
+  Widget _buildIcon(ThemeData theme, bool isSuccess, bool isError) {
+    if (isSuccess) {
+      return ScaleTransition(
+        scale: _iconScale,
+        child: Container(
+          width: 84,
+          height: 84,
+          decoration: const BoxDecoration(
+            color: Color(0xFFE8F5E9),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.check_circle_rounded,
+            color: Color(0xFF2E7D32),
+            size: 54,
+          ),
+        ),
+      );
+    }
+
+    if (isError) {
+      return ScaleTransition(
+        scale: _iconScale,
+        child: Container(
+          width: 84,
+          height: 84,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.errorContainer,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.cancel_rounded,
+            color: theme.colorScheme.error,
+            size: 54,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: 84,
+      height: 84,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer,
+        shape: BoxShape.circle,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: CircularProgressIndicator(
+          strokeWidth: 3,
+          color: theme.colorScheme.primary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSteps(ThemeData theme, int currentStep) {
+    final steps = [
+      (label: 'Verificando pago con PayPal', step: 0),
+      (label: 'Activando tu suscripción', step: 1),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: steps.map((s) {
+        final _StepStatus status;
+        if (currentStep > s.step) {
+          status = _StepStatus.done;
+        } else if (currentStep == s.step) {
+          status = _StepStatus.active;
+        } else {
+          status = _StepStatus.pending;
+        }
+        return _buildStepRow(theme, s.label, status);
+      }).toList(),
+    );
+  }
+
+  Widget _buildStepRow(ThemeData theme, String label, _StepStatus status) {
+    final activeColor = theme.colorScheme.primary;
+    const doneColor = Color(0xFF2E7D32);
+    final pendingColor = theme.colorScheme.outlineVariant;
+
+    final Widget icon;
+    final Color textColor;
+    final FontWeight fontWeight;
+
+    switch (status) {
+      case _StepStatus.active:
+        icon = SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2.5, color: activeColor),
+        );
+        textColor = theme.colorScheme.onSurface;
+        fontWeight = FontWeight.w600;
+      case _StepStatus.done:
+        icon = const Icon(Icons.check_circle_rounded, color: doneColor, size: 20);
+        textColor = theme.colorScheme.onSurfaceVariant;
+        fontWeight = FontWeight.normal;
+      case _StepStatus.pending:
+        icon = Icon(Icons.radio_button_unchecked, color: pendingColor, size: 20);
+        textColor = pendingColor;
+        fontWeight = FontWeight.normal;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        children: [
+          SizedBox(width: 20, height: 20, child: icon),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              label,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: textColor,
+                fontWeight: fontWeight,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuccessCard(ThemeData theme, Map<String, dynamic> data) {
+    final planName = (data['subscriptionType'] ?? '').toString();
+    final invoiceLimit = data['invoiceLimit']?.toString() ?? '0';
+    final amountCharged = data['amountCharged'];
+    final periodEnd = (data['periodEndDate'] ?? '').toString();
+
+    String formattedDate = '';
+    if (periodEnd.isNotEmpty) {
+      try {
+        final date = DateTime.parse(periodEnd);
+        const months = [
+          'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+          'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+        ];
+        formattedDate = '${date.day} ${months[date.month - 1]} ${date.year}';
+      } catch (_) {
+        formattedDate = periodEnd;
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFE8F5E9), Color(0xFFF1F8E9)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFA5D6A7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.workspace_premium_rounded,
+                color: Color(0xFF2E7D32),
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  planName.isEmpty ? 'Plan activo' : planName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1B5E20),
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              if (amountCharged != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2E7D32),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '\$$amountCharged/mes',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Color(0xFFC8E6C9), height: 1),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _infoChip(
+                Icons.receipt_long_outlined,
+                '$invoiceLimit facturas/mes',
+              ),
+              const SizedBox(width: 8),
+              if (formattedDate.isNotEmpty)
+                _infoChip(
+                  Icons.calendar_month_outlined,
+                  'Hasta: $formattedDate',
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoChip(IconData icon, String text) {
+    return Expanded(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF388E3C)),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xFF388E3C),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Clases auxiliares ────────────────────────────────────────────────────────
 
 class _NavItem {
   final String label;

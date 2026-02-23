@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import '../auth/auth_token_manager.dart';
+import '../auth/session_expired_notifier.dart';
 import 'api_config.dart';
 
 /// Cliente HTTP basado en Dio
@@ -10,7 +11,7 @@ class DioClient {
   late final Dio _dio;
   final AuthTokenManager _authTokenManager;
 
-  DioClient(this._authTokenManager) {
+  DioClient(this._authTokenManager, SessionExpiredNotifier sessionExpiredNotifier) {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiConfig.baseUrl,
@@ -21,7 +22,9 @@ class DioClient {
       ),
     );
 
-    _dio.interceptors.add(_AuthInterceptor(_authTokenManager, _dio));
+    _dio.interceptors.add(
+      _AuthInterceptor(_authTokenManager, _dio, sessionExpiredNotifier),
+    );
 
     _dio.interceptors.add(
       PrettyDioLogger(
@@ -38,7 +41,6 @@ class DioClient {
 
   Dio get dio => _dio;
 
-  // Métodos helper
   Future<Response> get(
     String path, {
     Map<String, dynamic>? queryParameters,
@@ -113,8 +115,9 @@ class DioClient {
 class _AuthInterceptor extends QueuedInterceptor {
   final AuthTokenManager _tokenManager;
   final Dio _dio;
+  final SessionExpiredNotifier _notifier;
 
-  _AuthInterceptor(this._tokenManager, this._dio);
+  _AuthInterceptor(this._tokenManager, this._dio, this._notifier);
 
   @override
   Future<void> onRequest(
@@ -136,23 +139,35 @@ class _AuthInterceptor extends QueuedInterceptor {
   }
 
   @override
-  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
     final status = err.response?.statusCode;
     final retried = err.requestOptions.extra['retried'] == true;
 
     if (status == 401 && !retried) {
+      // Primer 401: intentar refrescar el token
       final token = await _tokenManager.getValidAccessToken();
       if (token != null && token.isNotEmpty) {
-        final requestOptions = err.requestOptions;
-        requestOptions.headers['Authorization'] = 'Bearer $token';
-        requestOptions.extra['retried'] = true;
+        // Refresh exitoso → reintentar la request original
+        final opts = err.requestOptions;
+        opts.headers['Authorization'] = 'Bearer $token';
+        opts.extra['retried'] = true;
         try {
-          final clone = await _dio.fetch(requestOptions);
+          final clone = await _dio.fetch(opts);
           return handler.resolve(clone);
         } catch (_) {
-          // si falla, dejamos pasar el error original
+          // Reintento también falló con token fresco → sesión inválida
+          _notifier.notify();
         }
+      } else {
+        // No hay token válido (refresh falló, sesión limpiada)
+        _notifier.notify();
       }
+    } else if (status == 401 && retried) {
+      // Segundo 401 consecutivo → sesión definitivamente expirada
+      _notifier.notify();
     }
 
     handler.next(err);

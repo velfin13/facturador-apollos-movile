@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'core/auth/session_expired_notifier.dart';
 import 'core/theme/app_theme.dart';
 import 'injection/injection_container.dart';
 import 'features/auth/presentation/bloc/auth_bloc.dart';
@@ -34,63 +37,99 @@ class MyApp extends StatelessWidget {
         title: 'Facturador',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
-        home: BlocConsumer<AuthBloc, AuthState>(
-          listener: (context, state) {
-            debugPrint('AuthState changed to: ${state.runtimeType}');
-            if (state is AuthUnauthenticated && state.errorMessage != null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(state.errorMessage!),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          },
-          builder: (context, state) {
-            // Usuario sin roles asignados
-            if (state is AuthNoRolesAssigned) {
-              return NoRolesPage(usuario: state.usuario);
-            }
-            // Usuario necesita seleccionar rol
-            if (state is AuthRoleSelectionRequired) {
-              return RoleSelectionPage(usuario: state.usuario);
-            }
-            // Usuario autenticado con rol -> Home
-            if (state is AuthAuthenticated) {
-              if (state.usuario.esCliente) {
-                return NegocioGatePage(usuario: state.usuario);
-              }
-              return HomePage(usuario: state.usuario);
-            }
-            // Usuario no autenticado -> Login
-            if (state is AuthUnauthenticated) {
-              return const LoginPage();
-            }
-            // Cualquier otro estado (Initial, Loading, Error) -> Splash/Loading
-            return Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.receipt_long,
-                      size: 80,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(height: 24),
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 16),
-                    Text(
-                      state is AuthLoading ? 'Autenticando...' : 'Cargando...',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
+        home: const _AppRoot(),
       ),
+    );
+  }
+}
+
+/// Widget raíz de la app. Es hijo de [MultiBlocProvider], por lo que puede
+/// acceder al [AuthBloc] y escuchar el [SessionExpiredNotifier].
+class _AppRoot extends StatefulWidget {
+  const _AppRoot();
+
+  @override
+  State<_AppRoot> createState() => _AppRootState();
+}
+
+class _AppRootState extends State<_AppRoot> {
+  late final StreamSubscription<void> _sessionExpiredSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionExpiredSub = getIt<SessionExpiredNotifier>()
+        .onSessionExpired
+        .listen((_) {
+          if (mounted) {
+            context.read<AuthBloc>().add(LogoutEvent());
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _sessionExpiredSub.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        debugPrint('AuthState changed to: ${state.runtimeType}');
+        if (state is AuthUnauthenticated && state.errorMessage != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.errorMessage!),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        if (state is AuthUnauthenticated) {
+          // Limpiar cualquier snackbar o dialog pendiente al cerrar sesión
+          ScaffoldMessenger.of(context).clearSnackBars();
+        }
+      },
+      builder: (context, state) {
+        if (state is AuthNoRolesAssigned) {
+          return NoRolesPage(usuario: state.usuario);
+        }
+        if (state is AuthRoleSelectionRequired) {
+          return RoleSelectionPage(usuario: state.usuario);
+        }
+        if (state is AuthAuthenticated) {
+          if (state.usuario.esCliente) {
+            return NegocioGatePage(usuario: state.usuario);
+          }
+          return HomePage(usuario: state.usuario);
+        }
+        if (state is AuthUnauthenticated) {
+          return const LoginPage();
+        }
+        // AuthInitial / AuthLoading / AuthError → splash
+        return Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.receipt_long,
+                  size: 80,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 24),
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(
+                  state is AuthLoading ? 'Autenticando...' : 'Cargando...',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

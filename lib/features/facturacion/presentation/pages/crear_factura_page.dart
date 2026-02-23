@@ -8,6 +8,7 @@ import '../../../productos/presentation/bloc/producto_bloc.dart';
 import '../../domain/entities/factura.dart';
 import '../bloc/factura_bloc.dart';
 import '../../../../core/network/dio_client.dart';
+import '../../../../core/network/periodo_manager.dart';
 import '../../../../injection/injection_container.dart';
 
 class _FormaPago {
@@ -51,7 +52,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
     try {
       final response = await getIt<DioClient>().get(
         '/Ventas/formas-pago',
-        queryParameters: {'periodo': 1},
+        queryParameters: {'periodo': getIt<PeriodoManager>().periodoActual},
       );
       if (response.data is Map && response.data['data'] is List) {
         final lista = (response.data['data'] as List).map((e) {
@@ -61,28 +62,36 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
           );
         }).toList();
         if (mounted) {
-          setState(() {
-            _formasPago = lista;
-            _formaPagoSeleccionada = lista.isNotEmpty ? lista.first : null;
-            _loadingFormasPago = false;
-          });
+          if (lista.isNotEmpty) {
+            setState(() {
+              _formasPago = lista;
+              _formaPagoSeleccionada = lista.first;
+              _loadingFormasPago = false;
+            });
+          } else {
+            _usarFormasPagoFallback();
+          }
         }
       } else {
-        if (mounted) setState(() => _loadingFormasPago = false);
+        if (mounted) _usarFormasPagoFallback();
       }
     } catch (_) {
-      // Fallback: formas de pago conocidas
-      if (mounted) {
-        setState(() {
-          _formasPago = const [
-            _FormaPago(1, 'EFECTIVO'),
-            _FormaPago(2, 'CREDITO'),
-          ];
-          _formaPagoSeleccionada = const _FormaPago(1, 'EFECTIVO');
-          _loadingFormasPago = false;
-        });
-      }
+      if (mounted) _usarFormasPagoFallback();
     }
+  }
+
+  void _usarFormasPagoFallback() {
+    setState(() {
+      _formasPago = const [
+        _FormaPago(1, 'EFECTIVO'),
+        _FormaPago(2, 'CREDITO'),
+        _FormaPago(3, 'TARJETA DE CRÉDITO'),
+        _FormaPago(4, 'TARJETA DE DÉBITO'),
+        _FormaPago(5, 'TRANSFERENCIA BANCARIA'),
+      ];
+      _formaPagoSeleccionada = const _FormaPago(1, 'EFECTIVO');
+      _loadingFormasPago = false;
+    });
   }
 
   double get _subtotal {
