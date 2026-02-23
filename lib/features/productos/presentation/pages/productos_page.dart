@@ -17,6 +17,14 @@ class ProductosPage extends StatefulWidget {
 
 class _ProductosPageState extends State<ProductosPage> {
   _FiltroEstadoProducto _filtro = _FiltroEstadoProducto.todos;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   String _activoFromFiltro(_FiltroEstadoProducto filtro) {
     switch (filtro) {
@@ -30,9 +38,9 @@ class _ProductosPageState extends State<ProductosPage> {
   }
 
   Future<void> _onRefresh(BuildContext context) async {
-    context.read<ProductoBloc>().add(
-      GetProductosEvent(activo: _activoFromFiltro(_filtro)),
-    );
+    context
+        .read<ProductoBloc>()
+        .add(GetProductosEvent(activo: _activoFromFiltro(_filtro)));
     await Future<void>.delayed(const Duration(milliseconds: 300));
   }
 
@@ -51,14 +59,25 @@ class _ProductosPageState extends State<ProductosPage> {
     );
 
     if (result == true && context.mounted) {
-      context.read<ProductoBloc>().add(
-        GetProductosEvent(activo: _activoFromFiltro(_filtro)),
-      );
+      context
+          .read<ProductoBloc>()
+          .add(GetProductosEvent(activo: _activoFromFiltro(_filtro)));
     }
+  }
+
+  List<Producto> _filtrarProductos(List<Producto> productos) {
+    if (_searchQuery.isEmpty) return productos;
+    final q = _searchQuery.toLowerCase();
+    return productos.where((p) {
+      return p.descripcion.toLowerCase().contains(q) ||
+          (p.barra?.toLowerCase().contains(q) ?? false);
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return BlocProvider(
       create: (_) =>
           getIt<ProductoBloc>()
@@ -67,9 +86,43 @@ class _ProductosPageState extends State<ProductosPage> {
         builder: (context) => Scaffold(
           body: Column(
             children: [
+              // Barra de búsqueda
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: SearchBar(
+                  controller: _searchController,
+                  hintText: 'Buscar producto o código...',
+                  leading: const Icon(Icons.search),
+                  trailing: [
+                    if (_searchQuery.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _searchQuery = value),
+                  elevation: const WidgetStatePropertyAll(0),
+                  backgroundColor: WidgetStatePropertyAll(
+                    theme.colorScheme.surfaceContainerLow,
+                  ),
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
+                  ),
+                  padding: const WidgetStatePropertyAll(
+                    EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                ),
+              ),
+
               // Chips de filtro
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                 child: Row(
                   children: [
                     _FilterChip(
@@ -77,101 +130,182 @@ class _ProductosPageState extends State<ProductosPage> {
                       selected: _filtro == _FiltroEstadoProducto.todos,
                       onTap: () {
                         setState(() => _filtro = _FiltroEstadoProducto.todos);
-                        context.read<ProductoBloc>().add(GetProductosEvent(activo: ''));
+                        context
+                            .read<ProductoBloc>()
+                            .add(GetProductosEvent(activo: ''));
                       },
                     ),
                     const SizedBox(width: 8),
                     _FilterChip(
                       label: 'Activos',
                       selected: _filtro == _FiltroEstadoProducto.activos,
+                      icon: Icons.check_circle_outline,
                       onTap: () {
-                        setState(() => _filtro = _FiltroEstadoProducto.activos);
-                        context.read<ProductoBloc>().add(GetProductosEvent(activo: 'S'));
+                        setState(
+                          () => _filtro = _FiltroEstadoProducto.activos,
+                        );
+                        context
+                            .read<ProductoBloc>()
+                            .add(GetProductosEvent(activo: 'S'));
                       },
                     ),
                     const SizedBox(width: 8),
                     _FilterChip(
                       label: 'Inactivos',
                       selected: _filtro == _FiltroEstadoProducto.inactivos,
+                      icon: Icons.visibility_off_outlined,
                       onTap: () {
-                        setState(() => _filtro = _FiltroEstadoProducto.inactivos);
-                        context.read<ProductoBloc>().add(GetProductosEvent(activo: 'N'));
+                        setState(
+                          () => _filtro = _FiltroEstadoProducto.inactivos,
+                        );
+                        context
+                            .read<ProductoBloc>()
+                            .add(GetProductosEvent(activo: 'N'));
                       },
                     ),
                   ],
                 ),
               ),
+
               Expanded(
                 child: BlocConsumer<ProductoBloc, ProductoState>(
                   listener: (context, state) {
                     if (state is ProductoStatusUpdated) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(state.message)));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(state.message),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
                     }
                   },
                   builder: (context, state) {
                     if (state is ProductoLoading) {
                       return const Center(child: CircularProgressIndicator());
-                    } else if (state is ProductoLoaded) {
+                    }
+
+                    if (state is ProductoLoaded) {
+                      final filtered = _filtrarProductos(state.productos);
                       return RefreshIndicator(
                         onRefresh: () => _onRefresh(context),
-                        child: ProductoListWidget(
-                          productos: state.productos,
-                          onStockAjustado: () {
-                            context.read<ProductoBloc>().add(
-                              GetProductosEvent(activo: _activoFromFiltro(_filtro)),
-                            );
-                          },
-                          onEdit: (producto) async {
-                            await _abrirFormularioProducto(
-                              context: context,
-                              producto: producto,
-                            );
-                          },
-                          onToggleStatus: (producto) async {
-                            final activar = !producto.estaActivo;
-                            final confirmed = await _confirmarCambioEstado(
-                              context,
-                              producto.descripcion,
-                              activar,
-                            );
-                            if (!confirmed || !context.mounted) return;
-
-                            context.read<ProductoBloc>().add(
-                              ToggleProductoStatusEvent(
-                                producto: producto,
-                                activar: activar,
+                        child: Column(
+                          children: [
+                            // Contador
+                            if (state.productos.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      '${filtered.length} producto${filtered.length != 1 ? 's' : ''}',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.outline,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    if (_searchQuery.isNotEmpty &&
+                                        filtered.length !=
+                                            state.productos.length) ...[
+                                      Text(
+                                        ' de ${state.productos.length}',
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: theme.colorScheme.outline,
+                                            ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
-                            );
-                          },
+                            Expanded(
+                              child: ProductoListWidget(
+                                productos: filtered,
+                                onStockAjustado: () {
+                                  context.read<ProductoBloc>().add(
+                                    GetProductosEvent(
+                                      activo: _activoFromFiltro(_filtro),
+                                    ),
+                                  );
+                                },
+                                onEdit: (producto) async {
+                                  await _abrirFormularioProducto(
+                                    context: context,
+                                    producto: producto,
+                                  );
+                                },
+                                onToggleStatus: (producto) async {
+                                  final activar = !producto.estaActivo;
+                                  final confirmed =
+                                      await _confirmarCambioEstado(
+                                        context,
+                                        producto.descripcion,
+                                        activar,
+                                      );
+                                  if (!confirmed || !context.mounted) return;
+
+                                  context.read<ProductoBloc>().add(
+                                    ToggleProductoStatusEvent(
+                                      producto: producto,
+                                      activar: activar,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                         ),
                       );
-                    } else if (state is ProductoError) {
+                    }
+
+                    if (state is ProductoError) {
                       return RefreshIndicator(
                         onRefresh: () => _onRefresh(context),
                         child: ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           children: [
                             SizedBox(
-                              height: MediaQuery.of(context).size.height * 0.7,
+                              height: MediaQuery.of(context).size.height * 0.6,
                               child: Center(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(
-                                      Icons.error_outline,
-                                      size: 60,
-                                      color: Colors.red,
+                                    Container(
+                                      width: 72,
+                                      height: 72,
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.errorContainer,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.error_outline,
+                                        size: 36,
+                                        color: theme.colorScheme.error,
+                                      ),
                                     ),
                                     const SizedBox(height: 16),
                                     Text(
-                                      'Error: ${state.message}',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(fontSize: 16),
+                                      'Error al cargar productos',
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                     ),
-                                    const SizedBox(height: 16),
-                                    ElevatedButton(
+                                    const SizedBox(height: 6),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 32,
+                                      ),
+                                      child: Text(
+                                        state.message,
+                                        textAlign: TextAlign.center,
+                                        style: theme.textTheme.bodySmall
+                                            ?.copyWith(
+                                              color: theme.colorScheme.outline,
+                                            ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    FilledButton.icon(
                                       onPressed: () {
                                         context.read<ProductoBloc>().add(
                                           GetProductosEvent(
@@ -179,7 +313,8 @@ class _ProductosPageState extends State<ProductosPage> {
                                           ),
                                         );
                                       },
-                                      child: const Text('Reintentar'),
+                                      icon: const Icon(Icons.refresh),
+                                      label: const Text('Reintentar'),
                                     ),
                                   ],
                                 ),
@@ -189,6 +324,7 @@ class _ProductosPageState extends State<ProductosPage> {
                         ),
                       );
                     }
+
                     return RefreshIndicator(
                       onRefresh: () => _onRefresh(context),
                       child: ListView(
@@ -206,12 +342,13 @@ class _ProductosPageState extends State<ProductosPage> {
               ),
             ],
           ),
-          floatingActionButton: FloatingActionButton(
+          floatingActionButton: FloatingActionButton.extended(
             heroTag: 'fab_productos',
             onPressed: () async {
               await _abrirFormularioProducto(context: context);
             },
-            child: const Icon(Icons.add),
+            icon: const Icon(Icons.add),
+            label: const Text('Nuevo producto'),
           ),
         ),
       ),
@@ -220,22 +357,31 @@ class _ProductosPageState extends State<ProductosPage> {
 
   Future<bool> _confirmarCambioEstado(
     BuildContext context,
-    String descripcionProducto,
+    String descripcion,
     bool activar,
   ) async {
-    final accion = activar ? 'activar' : 'desactivar';
-
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('${activar ? "Activar" : "Desactivar"} producto'),
-        content: Text('¿Deseas $accion "$descripcionProducto"?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: Icon(
+          activar ? Icons.check_circle_outline : Icons.visibility_off_outlined,
+          size: 40,
+          color: activar ? Colors.green.shade600 : Colors.orange.shade700,
+        ),
+        title: Text(activar ? 'Activar producto' : 'Desactivar producto'),
+        content: Text(
+          '¿Deseas ${activar ? "activar" : "desactivar"} "$descripcion"?',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Cancelar'),
           ),
-          ElevatedButton(
+          const SizedBox(width: 8),
+          FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Confirmar'),
           ),
@@ -247,15 +393,19 @@ class _ProductosPageState extends State<ProductosPage> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final IconData? icon;
 
   const _FilterChip({
     required this.label,
     required this.selected,
     required this.onTap,
+    this.icon,
   });
 
   @override
@@ -265,19 +415,32 @@ class _FilterChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? color : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: selected ? color : Colors.grey.shade400),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-            color: selected ? Colors.white : Colors.grey.shade700,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 14,
+                color: selected ? Colors.white : Colors.grey.shade600,
+              ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                color: selected ? Colors.white : Colors.grey.shade700,
+              ),
+            ),
+          ],
         ),
       ),
     );

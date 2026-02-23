@@ -36,6 +36,7 @@ import '../features/clientes/domain/repositories/cliente_repository.dart'
     as _i135;
 import '../features/clientes/domain/usecases/create_cliente.dart' as _i799;
 import '../features/clientes/domain/usecases/get_clientes.dart' as _i943;
+import '../features/clientes/domain/usecases/update_cliente.dart' as _i742;
 import '../features/clientes/presentation/bloc/cliente_bloc.dart' as _i454;
 import '../features/facturacion/data/datasources/factura_local_data_source.dart'
     as _i865;
@@ -200,17 +201,14 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i943.GetClientes>(
       () => _i943.GetClientes(gh<_i135.ClienteRepository>()),
     );
+    gh.lazySingleton<_i742.UpdateCliente>(
+      () => _i742.UpdateCliente(gh<_i135.ClienteRepository>()),
+    );
     gh.factory<_i246.FacturaBloc>(
       () => _i246.FacturaBloc(
         getFacturas: gh<_i92.GetFacturas>(),
         getFactura: gh<_i756.GetFactura>(),
         createFactura: gh<_i281.CreateFactura>(),
-      ),
-    );
-    gh.factory<_i454.ClienteBloc>(
-      () => _i454.ClienteBloc(
-        getClientes: gh<_i943.GetClientes>(),
-        createCliente: gh<_i799.CreateCliente>(),
       ),
     );
     gh.factory<_i829.ProductoBloc>(
@@ -219,6 +217,13 @@ extension GetItInjectableX on _i174.GetIt {
         createProducto: gh<_i852.CreateProducto>(),
         updateProducto: gh<_i453.UpdateProducto>(),
         toggleProductoStatus: gh<_i502.ToggleProductoStatus>(),
+      ),
+    );
+    gh.factory<_i454.ClienteBloc>(
+      () => _i454.ClienteBloc(
+        getClientes: gh<_i943.GetClientes>(),
+        createCliente: gh<_i799.CreateCliente>(),
+        updateCliente: gh<_i742.UpdateCliente>(),
       ),
     );
     return this;

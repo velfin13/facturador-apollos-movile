@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -17,6 +18,8 @@ class _FormaPago {
   const _FormaPago(this.id, this.descripcion);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 class CrearFacturaPage extends StatefulWidget {
   const CrearFacturaPage({super.key});
 
@@ -25,8 +28,9 @@ class CrearFacturaPage extends StatefulWidget {
 }
 
 class _CrearFacturaPageState extends State<CrearFacturaPage> {
-  final _formKey = GlobalKey<FormState>();
   Cliente? _clienteSeleccionado;
+  bool _clienteError = false;
+  DateTime _fecha = DateTime.now();
   final List<ItemFacturaTemp> _items = [];
   final _observacionController = TextEditingController();
 
@@ -94,448 +98,114 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
     });
   }
 
-  double get _subtotal {
-    return _items.fold(0.0, (sum, item) => sum + item.subtotal);
-  }
+  double get _subtotal => _items.fold(0.0, (s, i) => s + i.subtotal);
+  double get _ivaTotal => _items.fold(0.0, (s, i) => s + i.iva);
+  double get _total => _subtotal + _ivaTotal;
 
-  double get _ivaTotal {
-    return _items.fold(0.0, (sum, item) => sum + item.iva);
-  }
-
-  double get _total {
-    return _subtotal + _ivaTotal;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return BlocListener<FacturaBloc, FacturaState>(
-      listener: (context, state) {
-        if (state is FacturaCreated) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Factura guardada exitosamente'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          setState(() {
-            _clienteSeleccionado = null;
-            _items.clear();
-            _observacionController.clear();
-            _formaPagoSeleccionada =
-                _formasPago.isNotEmpty ? _formasPago.first : null;
-          });
-        } else if (state is FacturaError) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: ${state.message}'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Nueva Factura'),
-          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        ),
-        body: BlocBuilder<ClienteBloc, ClienteState>(
-          builder: (context, clienteState) {
-            return BlocBuilder<ProductoBloc, ProductoState>(
-              builder: (context, productoState) {
-                if (clienteState is ClienteLoading ||
-                    productoState is ProductoLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final clientes = clienteState is ClienteLoaded
-                    ? clienteState.clientes
-                    : <Cliente>[];
-                final productos = productoState is ProductoLoaded
-                    ? productoState.productos
-                    : <Producto>[];
-
-                return Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Cliente
-                              Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Cliente',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      if (clientes.isEmpty)
-                                        const Padding(
-                                          padding: EdgeInsets.all(8),
-                                          child: Text(
-                                            'No hay clientes disponibles',
-                                            style:
-                                                TextStyle(color: Colors.grey),
-                                          ),
-                                        )
-                                      else
-                                        DropdownButtonFormField<Cliente>(
-                                          value: _clienteSeleccionado,
-                                          isExpanded: true,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Seleccionar Cliente',
-                                            border: OutlineInputBorder(),
-                                          ),
-                                          items: clientes.map((c) {
-                                            return DropdownMenuItem(
-                                              value: c,
-                                              child: Text(
-                                                '${c.nombre} - ${c.ruc}',
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                              ),
-                                            );
-                                          }).toList(),
-                                          onChanged: (c) => setState(
-                                            () => _clienteSeleccionado = c,
-                                          ),
-                                          validator: (v) => v == null
-                                              ? 'Seleccione un cliente'
-                                              : null,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Items
-                              Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          const Text(
-                                            'Productos',
-                                            style: TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          ElevatedButton.icon(
-                                            onPressed: productos.isEmpty
-                                                ? null
-                                                : () =>
-                                                    _agregarItem(productos),
-                                            icon: const Icon(Icons.add),
-                                            label: const Text('Agregar'),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      if (_items.isEmpty)
-                                        const Center(
-                                          child: Padding(
-                                            padding: EdgeInsets.all(24),
-                                            child: Text(
-                                              'No hay productos agregados',
-                                              style: TextStyle(
-                                                  color: Colors.grey),
-                                            ),
-                                          ),
-                                        )
-                                      else
-                                        ListView.builder(
-                                          shrinkWrap: true,
-                                          physics:
-                                              const NeverScrollableScrollPhysics(),
-                                          itemCount: _items.length,
-                                          itemBuilder: (ctx, i) {
-                                            final item = _items[i];
-                                            return ListTile(
-                                              contentPadding: EdgeInsets.zero,
-                                              title: Text(
-                                                item.descripcion,
-                                                style: const TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.w500),
-                                              ),
-                                              subtitle: Text(
-                                                '${item.cantidad} x \$${item.precioUnitario.toStringAsFixed(2)}'
-                                                '${item.aplicaIva ? ' + IVA' : ''}',
-                                              ),
-                                              trailing: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Text(
-                                                    '\$${item.total.toStringAsFixed(2)}',
-                                                    style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold),
-                                                  ),
-                                                  IconButton(
-                                                    icon: const Icon(
-                                                        Icons.delete,
-                                                        color: Colors.red,
-                                                        size: 20),
-                                                    onPressed: () =>
-                                                        setState(() {
-                                                      _items.removeAt(i);
-                                                    }),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Forma de pago
-                              Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Forma de Pago',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      if (_loadingFormasPago)
-                                        const Center(
-                                          child: SizedBox(
-                                            height: 24,
-                                            width: 24,
-                                            child: CircularProgressIndicator(
-                                                strokeWidth: 2),
-                                          ),
-                                        )
-                                      else
-                                        DropdownButtonFormField<_FormaPago>(
-                                          value: _formaPagoSeleccionada,
-                                          isExpanded: true,
-                                          decoration: const InputDecoration(
-                                            labelText: 'Seleccionar Forma de Pago',
-                                            border: OutlineInputBorder(),
-                                          ),
-                                          items: _formasPago.map((fp) {
-                                            return DropdownMenuItem(
-                                              value: fp,
-                                              child: Text(fp.descripcion),
-                                            );
-                                          }).toList(),
-                                          onChanged: (fp) => setState(
-                                            () => _formaPagoSeleccionada = fp,
-                                          ),
-                                          validator: (v) => v == null
-                                              ? 'Seleccione una forma de pago'
-                                              : null,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Observación
-                              TextFormField(
-                                controller: _observacionController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Observación (opcional)',
-                                  border: OutlineInputBorder(),
-                                  prefixIcon: Icon(Icons.notes),
-                                ),
-                                maxLines: 2,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Totales y botones
-                      Container(
-                        padding: EdgeInsets.only(
-                          left: 16,
-                          right: 16,
-                          top: 16,
-                          bottom:
-                              16 + MediaQuery.of(context).padding.bottom,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 4,
-                              offset: const Offset(0, -2),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('Subtotal:'),
-                                Text(
-                                  '\$${_subtotal.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w500),
-                                ),
-                              ],
-                            ),
-                            if (_ivaTotal > 0) ...[
-                              const SizedBox(height: 4),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text('IVA (15%):'),
-                                  Text(
-                                    '\$${_ivaTotal.toStringAsFixed(2)}',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w500),
-                                  ),
-                                ],
-                              ),
-                            ],
-                            const Divider(height: 16),
-                            Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'TOTAL:',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  '\$${_total.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: () =>
-                                        Navigator.pop(context),
-                                    child: const Text('Cancelar'),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: BlocBuilder<FacturaBloc,
-                                      FacturaState>(
-                                    builder: (ctx, state) {
-                                      final saving =
-                                          state is FacturaCreating;
-                                      return ElevatedButton(
-                                        onPressed:
-                                            saving ? null : _guardarFactura,
-                                        child: saving
-                                            ? const SizedBox(
-                                                height: 20,
-                                                width: 20,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: Colors.white),
-                                              )
-                                            : const Text('Guardar Factura'),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  void _agregarItem(List<Producto> productos) {
-    showDialog(
+  Future<void> _seleccionarFecha() async {
+    final picked = await showDatePicker(
       context: context,
-      builder: (context) => _AgregarItemDialog(
-        productos: productos,
-        onAgregar: (item) {
-          setState(() {
-            _items.add(item);
-          });
-        },
+      initialDate: _fecha,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _fecha = picked);
+  }
+
+  Future<void> _seleccionarCliente() async {
+    // Capture the bloc reference before the async gap
+    final clienteBloc = context.read<ClienteBloc>();
+    final result = await showModalBottomSheet<Cliente>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => BlocProvider.value(
+        value: clienteBloc,
+        child: const _ClienteSelectorSheet(),
       ),
     );
+    if (result != null && mounted) {
+      setState(() {
+        _clienteSeleccionado = result;
+        _clienteError = false;
+      });
+    }
+  }
+
+  Future<void> _agregarItem(List<Producto> productos, {int? editIndex}) async {
+    final item = editIndex != null ? _items[editIndex] : null;
+    final result = await showModalBottomSheet<ItemFacturaTemp>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _AgregarItemSheet(
+        productos: productos,
+        itemExistente: item,
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        if (editIndex != null) {
+          _items[editIndex] = result;
+        } else {
+          _items.add(result);
+        }
+      });
+    }
   }
 
   void _guardarFactura() {
-    if (_formKey.currentState!.validate()) {
-      if (_items.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Debe agregar al menos un producto'),
-            backgroundColor: Colors.orange,
+    bool hasError = false;
+    if (_clienteSeleccionado == null) {
+      setState(() => _clienteError = true);
+      hasError = true;
+    }
+    if (_items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Debe agregar al menos un producto'),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      hasError = true;
+    }
+    if (hasError) return;
+
+    final itemsFactura = _items
+        .map(
+          (item) => ItemFactura(
+            productoId: item.productoId,
+            productoNombre: item.descripcion,
+            cantidad: item.cantidad.toDouble(),
+            valor: item.precioUnitario,
+            descuentoPorcentaje: null,
+            bodegaId: '0',
           ),
-        );
-        return;
-      }
+        )
+        .toList();
 
-      final itemsFactura = _items.map((item) {
-        return ItemFactura(
-          productoId: item.productoId,
-          productoNombre: item.descripcion,
-          cantidad: item.cantidad.toDouble(),
-          valor: item.precioUnitario,
-          descuentoPorcentaje: null,
-          bodegaId: '0',
-        );
-      }).toList();
-
-      final formasPago = [
+    final factura = Factura(
+      id: '',
+      periodo: '',
+      tipo: 'FV',
+      fecha: _fecha,
+      clienteId: _clienteSeleccionado!.id,
+      clienteNombre: _clienteSeleccionado!.nombre,
+      numFact: null,
+      observacion: _observacionController.text.trim().isEmpty
+          ? null
+          : _observacionController.text.trim(),
+      subtotal: _subtotal,
+      ivaTotal: _ivaTotal,
+      descTotal: 0.0,
+      total: _total,
+      items: itemsFactura,
+      formasPago: [
         FormaPago(
           formaPagoId: (_formaPagoSeleccionada?.id ?? 1).toString(),
           formaPagoNombre: _formaPagoSeleccionada?.descripcion,
@@ -544,31 +214,1478 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
           referencia: null,
           fechaVence: null,
         ),
-      ];
+      ],
+    );
 
-      final factura = Factura(
-        id: '',
-        periodo: '',
-        tipo: 'FV',
-        fecha: DateTime.now(),
-        clienteId: _clienteSeleccionado!.id,
-        clienteNombre: _clienteSeleccionado!.nombre,
-        numFact: null,
-        observacion: _observacionController.text.trim().isEmpty
-            ? null
-            : _observacionController.text.trim(),
-        subtotal: _subtotal,
-        ivaTotal: _ivaTotal,
-        descTotal: 0.0,
-        total: _total,
-        items: itemsFactura,
-        formasPago: formasPago,
-      );
+    context.read<FacturaBloc>().add(CreateFacturaEvent(factura));
+  }
 
-      context.read<FacturaBloc>().add(CreateFacturaEvent(factura));
+  IconData _iconForFormaPago(String desc) {
+    final d = desc.toUpperCase();
+    if (d.contains('EFECTIVO')) return Icons.payments_outlined;
+    if (d.contains('TARJETA')) return Icons.credit_card_outlined;
+    if (d.contains('TRANSFER')) return Icons.account_balance_outlined;
+    if (d.contains('CRÉDIT') || d.contains('CREDITO')) {
+      return Icons.receipt_long_outlined;
     }
+    if (d.contains('CHEQUE')) return Icons.edit_note_outlined;
+    return Icons.attach_money;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return BlocListener<FacturaBloc, FacturaState>(
+      listener: (context, state) {
+        if (state is FacturaCreated) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Factura emitida exitosamente'),
+              backgroundColor: Colors.green.shade600,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          setState(() {
+            _clienteSeleccionado = null;
+            _clienteError = false;
+            _fecha = DateTime.now();
+            _items.clear();
+            _observacionController.clear();
+            _formaPagoSeleccionada =
+                _formasPago.isNotEmpty ? _formasPago.first : null;
+          });
+        } else if (state is FacturaError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: theme.colorScheme.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Nueva Factura'),
+          centerTitle: false,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: ActionChip(
+                avatar: const Icon(Icons.calendar_today_outlined, size: 16),
+                label: Text(
+                  '${_fecha.day.toString().padLeft(2, '0')}/'
+                  '${_fecha.month.toString().padLeft(2, '0')}/'
+                  '${_fecha.year}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                onPressed: _seleccionarFecha,
+              ),
+            ),
+          ],
+        ),
+        body: BlocBuilder<ProductoBloc, ProductoState>(
+          builder: (context, productoState) {
+            final productos = productoState is ProductoLoaded
+                ? productoState.productos
+                : <Producto>[];
+
+            return Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // ── Cliente ───────────────────────────────────────────
+                        _buildClienteSection(context, theme),
+                        const SizedBox(height: 12),
+
+                        // ── Productos ─────────────────────────────────────────
+                        _buildProductosSection(
+                          context,
+                          theme,
+                          productos,
+                          productoState,
+                        ),
+                        const SizedBox(height: 12),
+
+                        // ── Forma de Pago ─────────────────────────────────────
+                        _buildFormaPagoSection(theme),
+                        const SizedBox(height: 12),
+
+                        // ── Observación ───────────────────────────────────────
+                        _buildObservacionSection(theme),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // ── Totales + Emitir ──────────────────────────────────────────
+                _buildTotalesBar(context, theme),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // ── Builders ────────────────────────────────────────────────────────────────
+
+  Widget _buildClienteSection(BuildContext context, ThemeData theme) {
+    return _SectionCard(
+      icon: Icons.person_outline,
+      title: 'Cliente',
+      errorText: _clienteError ? 'Seleccione un cliente' : null,
+      child: BlocBuilder<ClienteBloc, ClienteState>(
+        builder: (context, clienteState) {
+          final loading = clienteState is ClienteLoading;
+
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: _clienteError
+                    ? theme.colorScheme.error
+                    : _clienteSeleccionado != null
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.outlineVariant,
+                width:
+                    (_clienteSeleccionado != null || _clienteError) ? 1.5 : 1,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              color: _clienteSeleccionado != null
+                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.25)
+                  : theme.colorScheme.surfaceContainerLow,
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: loading ? null : _seleccionarCliente,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: loading
+                    ? const Row(
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Cargando clientes...'),
+                        ],
+                      )
+                    : _clienteSeleccionado != null
+                        ? Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor:
+                                    theme.colorScheme.primary.withValues(
+                                  alpha: 0.15,
+                                ),
+                                child: Text(
+                                  _clienteSeleccionado!.nombre.isNotEmpty
+                                      ? _clienteSeleccionado!.nombre[0]
+                                          .toUpperCase()
+                                      : '?',
+                                  style: TextStyle(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _clienteSeleccionado!.nombre,
+                                      style:
+                                          theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      _clienteSeleccionado!.ruc,
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.outline,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.swap_horiz,
+                                color: theme.colorScheme.primary,
+                                size: 20,
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Icon(
+                                Icons.search,
+                                size: 20,
+                                color: _clienteError
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.outline,
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Buscar y seleccionar cliente...',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: _clienteError
+                                      ? theme.colorScheme.error
+                                      : theme.colorScheme.outline,
+                                ),
+                              ),
+                            ],
+                          ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildProductosSection(
+    BuildContext context,
+    ThemeData theme,
+    List<Producto> productos,
+    ProductoState productoState,
+  ) {
+    final loading = productoState is ProductoLoading;
+
+    return _SectionCard(
+      icon: Icons.inventory_2_outlined,
+      title: 'Productos',
+      action: FilledButton.tonalIcon(
+        onPressed: (loading || productos.isEmpty)
+            ? null
+            : () => _agregarItem(productos),
+        icon: const Icon(Icons.add, size: 18),
+        label: const Text('Agregar'),
+        style: FilledButton.styleFrom(
+          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          textStyle: const TextStyle(fontSize: 13),
+        ),
+      ),
+      child: _items.isEmpty
+          ? Container(
+              height: 80,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.add_shopping_cart_outlined,
+                      size: 26,
+                      color: theme.colorScheme.outline,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Presiona Agregar para añadir productos',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : Column(
+              children: List.generate(
+                _items.length,
+                (i) => _ItemCard(
+                  item: _items[i],
+                  onEdit: () => _agregarItem(productos, editIndex: i),
+                  onDelete: () => setState(() => _items.removeAt(i)),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildFormaPagoSection(ThemeData theme) {
+    return _SectionCard(
+      icon: Icons.payments_outlined,
+      title: 'Forma de Pago',
+      child: _loadingFormasPago
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          : Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _formasPago.map((fp) {
+                final selected = _formaPagoSeleccionada?.id == fp.id;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? theme.colorScheme.primaryContainer
+                        : theme.colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selected
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.outlineVariant,
+                      width: selected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () => setState(() => _formaPagoSeleccionada = fp),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _iconForFormaPago(fp.descripcion),
+                            size: 16,
+                            color: selected
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.outline,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            fp.descripcion,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: selected
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: selected
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+    );
+  }
+
+  Widget _buildObservacionSection(ThemeData theme) {
+    return _SectionCard(
+      icon: Icons.notes_outlined,
+      title: 'Observación',
+      child: TextField(
+        controller: _observacionController,
+        maxLines: 2,
+        style: theme.textTheme.bodyMedium,
+        decoration: InputDecoration(
+          hintText: 'Opcional...',
+          hintStyle: TextStyle(color: theme.colorScheme.outline),
+          filled: true,
+          fillColor: theme.colorScheme.surfaceContainerLow,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(
+              color: theme.colorScheme.primary,
+              width: 1.5,
+            ),
+          ),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          isDense: true,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTotalesBar(BuildContext context, ThemeData theme) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        12 + MediaQuery.of(context).padding.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Subtotal',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+              Text(
+                '\$${_subtotal.toStringAsFixed(2)}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+            ],
+          ),
+          if (_ivaTotal > 0) ...[
+            const SizedBox(height: 2),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'IVA (15%)',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+                Text(
+                  '\$${_ivaTotal.toStringAsFixed(2)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: theme.colorScheme.onPrimaryContainer
+                            .withValues(alpha: 0.7),
+                      ),
+                    ),
+                    Text(
+                      '\$${_total.toStringAsFixed(2)}',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onPrimaryContainer,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: BlocBuilder<FacturaBloc, FacturaState>(
+                  builder: (ctx, state) {
+                    final saving = state is FacturaCreating;
+                    return FilledButton.icon(
+                      onPressed: saving ? null : _guardarFactura,
+                      icon: saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.receipt_long_outlined, size: 20),
+                      label: Text(
+                        saving ? 'Emitiendo...' : 'Emitir Factura',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _SectionCard
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Widget child;
+  final Widget? action;
+  final String? errorText;
+
+  const _SectionCard({
+    required this.icon,
+    required this.title,
+    required this.child,
+    this.action,
+    this.errorText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 16, color: theme.colorScheme.primary),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (action != null) ...[
+              const Spacer(),
+              action!,
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        child,
+        if (errorText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 4),
+            child: Text(
+              errorText!,
+              style: TextStyle(
+                color: theme.colorScheme.error,
+                fontSize: 12,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _ItemCard
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum _ItemAction { edit, delete }
+
+class _ItemCard extends StatelessWidget {
+  final ItemFacturaTemp item;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _ItemCard({
+    required this.item,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            // Accent bar
+            Container(
+              width: 4,
+              height: 60,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.descripcion,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Text(
+                          '${item.cantidad} × \$${item.precioUnitario.toStringAsFixed(2)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                        if (item.aplicaIva) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'IVA',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.amber.shade800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                '\$${item.total.toStringAsFixed(2)}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+            PopupMenuButton<_ItemAction>(
+              icon: Icon(
+                Icons.more_vert,
+                size: 20,
+                color: theme.colorScheme.outline,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              itemBuilder: (ctx) => [
+                PopupMenuItem(
+                  value: _ItemAction.edit,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.edit_outlined,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Editar',
+                        style: TextStyle(color: theme.colorScheme.primary),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: _ItemAction.delete,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: theme.colorScheme.error,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Eliminar',
+                        style: TextStyle(color: theme.colorScheme.error),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (action) {
+                if (action == _ItemAction.edit) onEdit();
+                if (action == _ItemAction.delete) onDelete();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _ClienteSelectorSheet — uses the ClienteBloc for search + pagination
+// Designed for thousands of clients: search dispatched to bloc with debounce,
+// load-more on scroll end.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ClienteSelectorSheet extends StatefulWidget {
+  const _ClienteSelectorSheet();
+
+  @override
+  State<_ClienteSelectorSheet> createState() => _ClienteSelectorSheetState();
+}
+
+class _ClienteSelectorSheetState extends State<_ClienteSelectorSheet> {
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  // Save the bloc reference early; context may not be valid in dispose()
+  late final ClienteBloc _clienteBloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _clienteBloc = context.read<ClienteBloc>();
+    // Reset any active search so the list shows all clients
+    _clienteBloc.add(SearchClientesEvent(''));
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    // Reset search so the main page is unaffected after closing
+    _clienteBloc.add(SearchClientesEvent(''));
+    super.dispose();
+  }
+
+  void _onSearch(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(
+      const Duration(milliseconds: 300),
+      () => _clienteBloc.add(SearchClientesEvent(value)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.8,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, scrollController) => Column(
+        children: [
+          // Handle
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 4),
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: BlocBuilder<ClienteBloc, ClienteState>(
+              builder: (context, state) {
+                final total = state is ClienteLoaded ? state.total : 0;
+                final showing =
+                    state is ClienteLoaded ? state.clientes.length : 0;
+                return Row(
+                  children: [
+                    Text(
+                      'Seleccionar Cliente',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    if (total > 0)
+                      Text(
+                        '$showing de $total',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+
+          // SearchBar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SearchBar(
+              controller: _searchController,
+              hintText: 'Buscar por nombre, RUC, ciudad...',
+              leading: const Icon(Icons.search),
+              trailing: [
+                if (_searchController.text.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () {
+                      _searchController.clear();
+                      context
+                          .read<ClienteBloc>()
+                          .add(SearchClientesEvent(''));
+                      setState(() {});
+                    },
+                  ),
+              ],
+              onChanged: (v) {
+                setState(() {});
+                _onSearch(v);
+              },
+              elevation: const WidgetStatePropertyAll(0),
+              backgroundColor: WidgetStatePropertyAll(
+                theme.colorScheme.surfaceContainerLow,
+              ),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: theme.colorScheme.outlineVariant),
+                ),
+              ),
+              padding: const WidgetStatePropertyAll(
+                EdgeInsets.symmetric(horizontal: 16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          Divider(height: 1, color: theme.colorScheme.outlineVariant),
+
+          // List
+          Expanded(
+            child: BlocBuilder<ClienteBloc, ClienteState>(
+              builder: (context, state) {
+                if (state is ClienteLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (state is ClienteLoaded) {
+                  final clientes = state.clientes;
+                  if (clientes.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'Sin resultados',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    );
+                  }
+
+                  return NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      if (notification is ScrollEndNotification &&
+                          notification.metrics.extentAfter < 200 &&
+                          state.hasMore) {
+                        context
+                            .read<ClienteBloc>()
+                            .add(LoadMoreClientesEvent());
+                      }
+                      return false;
+                    },
+                    child: ListView.builder(
+                      controller: scrollController,
+                      itemCount: clientes.length + (state.hasMore ? 1 : 0),
+                      itemBuilder: (ctx, i) {
+                        if (i == clientes.length) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          );
+                        }
+                        final c = clientes[i];
+                        final initial = c.nombre.isNotEmpty
+                            ? c.nombre[0].toUpperCase()
+                            : '?';
+                        return ListTile(
+                          leading: CircleAvatar(
+                            radius: 18,
+                            backgroundColor:
+                                theme.colorScheme.primaryContainer,
+                            child: Text(
+                              initial,
+                              style: TextStyle(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            c.nombre,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            c.ruc +
+                                (c.ciudad?.isNotEmpty == true
+                                    ? ' · ${c.ciudad}'
+                                    : ''),
+                            style: const TextStyle(fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () => Navigator.pop(context, c),
+                        );
+                      },
+                    ),
+                  );
+                }
+
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _AgregarItemSheet — product add / edit bottom sheet
+// Uses local filtering with ListView.builder (virtualized) for thousands of
+// products: only visible items are rendered.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AgregarItemSheet extends StatefulWidget {
+  final List<Producto> productos;
+  final ItemFacturaTemp? itemExistente;
+
+  const _AgregarItemSheet({required this.productos, this.itemExistente});
+
+  @override
+  State<_AgregarItemSheet> createState() => _AgregarItemSheetState();
+}
+
+class _AgregarItemSheetState extends State<_AgregarItemSheet> {
+  final _searchController = TextEditingController();
+  final _cantidadController = TextEditingController(text: '1');
+  final _precioController = TextEditingController();
+  Producto? _productoSeleccionado;
+  List<Producto> _filtrados = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filtrados = widget.productos;
+    _searchController.addListener(_filtrar);
+
+    // Edit mode: pre-fill
+    final item = widget.itemExistente;
+    if (item != null) {
+      _cantidadController.text = item.cantidad.toString();
+      _precioController.text = item.precioUnitario.toStringAsFixed(2);
+      final prod =
+          widget.productos.where((p) => p.id == item.productoId).firstOrNull;
+      if (prod != null) {
+        _productoSeleccionado = prod;
+        _searchController.text = prod.descripcion;
+        _filtrar();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_filtrar);
+    _searchController.dispose();
+    _cantidadController.dispose();
+    _precioController.dispose();
+    super.dispose();
+  }
+
+  void _filtrar() {
+    final q = _searchController.text.toLowerCase();
+    setState(() {
+      _filtrados = q.isEmpty
+          ? widget.productos
+          : widget.productos
+              .where(
+                (p) =>
+                    p.descripcion.toLowerCase().contains(q) ||
+                    (p.barra ?? '').toLowerCase().contains(q),
+              )
+              .toList();
+    });
+  }
+
+  void _seleccionarProducto(Producto p) {
+    setState(() {
+      _productoSeleccionado = p;
+      _precioController.text = p.precio.toStringAsFixed(2);
+    });
+  }
+
+  void _confirmar() {
+    if (_productoSeleccionado == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Seleccione un producto'),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final cant = int.tryParse(_cantidadController.text);
+    final precio = double.tryParse(_precioController.text);
+    if (cant == null || cant <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Cantidad inválida'),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    if (precio == null || precio <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Precio inválido'),
+          backgroundColor: Colors.orange.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    Navigator.pop(
+      context,
+      ItemFacturaTemp(
+        productoId: _productoSeleccionado!.id,
+        descripcion: _productoSeleccionado!.descripcion,
+        cantidad: cant,
+        precioUnitario: precio,
+        aplicaIva: _productoSeleccionado!.tieneIva,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isEdit = widget.itemExistente != null;
+    final mediaQuery = MediaQuery.of(context);
+    // viewInsets.bottom = keyboard height
+    // padding.bottom    = system navigation bar height
+    final bottomInset =
+        mediaQuery.viewInsets.bottom + mediaQuery.padding.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
+      child: DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, scrollController) => Column(
+          children: [
+            // Handle
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 4),
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Row(
+                children: [
+                  Text(
+                    isEdit ? 'Editar Producto' : 'Agregar Producto',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  if (_productoSeleccionado == null)
+                    Text(
+                      '${_filtrados.length} productos',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // SearchBar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SearchBar(
+                controller: _searchController,
+                hintText: 'Buscar por nombre o código de barras...',
+                leading: const Icon(Icons.search),
+                trailing: [
+                  if (_searchController.text.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _productoSeleccionado = null);
+                      },
+                    ),
+                ],
+                elevation: const WidgetStatePropertyAll(0),
+                backgroundColor: WidgetStatePropertyAll(
+                  theme.colorScheme.surfaceContainerLow,
+                ),
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: theme.colorScheme.outlineVariant),
+                  ),
+                ),
+                padding: const WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: 16),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Selected product preview
+            if (_productoSeleccionado != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer
+                        .withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color:
+                          theme.colorScheme.primary.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.inventory_2_outlined,
+                          size: 18,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _productoSeleccionado!.descripcion,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Row(
+                              children: [
+                                Text(
+                                  '\$${_productoSeleccionado!.precio.toStringAsFixed(2)}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.outline,
+                                  ),
+                                ),
+                                if (_productoSeleccionado!.tieneIva) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                      vertical: 1,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.shade100,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'IVA 15%',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.amber.shade800,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () =>
+                            setState(() => _productoSeleccionado = null),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            Divider(height: 1, color: theme.colorScheme.outlineVariant),
+
+            // Product list — ListView.builder is virtualized: only renders
+            // visible items, so thousands of products scroll without issues.
+            Expanded(
+              child: _filtrados.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Sin resultados',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: scrollController,
+                      itemCount: _filtrados.length,
+                      itemBuilder: (ctx, i) {
+                        final p = _filtrados[i];
+                        final selected = _productoSeleccionado?.id == p.id;
+                        return ListTile(
+                          dense: true,
+                          selected: selected,
+                          selectedTileColor: theme.colorScheme.primaryContainer
+                              .withValues(alpha: 0.3),
+                          leading: selected
+                              ? Icon(
+                                  Icons.check_circle,
+                                  color: theme.colorScheme.primary,
+                                  size: 20,
+                                )
+                              : Icon(
+                                  Icons.circle_outlined,
+                                  color: theme.colorScheme.outlineVariant,
+                                  size: 20,
+                                ),
+                          title: Text(
+                            p.descripcion,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: selected
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '\$${p.precio.toStringAsFixed(2)}'
+                            '${p.tieneIva ? ' + IVA' : ''}'
+                            '${p.barra != null ? ' · ${p.barra}' : ''}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          onTap: () => _seleccionarProducto(p),
+                        );
+                      },
+                    ),
+            ),
+
+            // Bottom bar: qty / price / confirm
+            Container(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + mediaQuery.padding.bottom),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                border: Border(
+                  top: BorderSide(color: theme.colorScheme.outlineVariant),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Cantidad
+                  SizedBox(
+                    width: 80,
+                    child: TextField(
+                      controller: _cantidadController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                      ],
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        labelText: 'Cant.',
+                        filled: true,
+                        fillColor: theme.colorScheme.surfaceContainerLow,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 10,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Precio
+                  SizedBox(
+                    width: 110,
+                    child: TextField(
+                      controller: _precioController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Precio',
+                        prefixText: '\$ ',
+                        filled: true,
+                        fillColor: theme.colorScheme.surfaceContainerLow,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 10,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // Confirm button
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _confirmar,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      child: Text(
+                        isEdit ? 'Guardar' : 'Agregar',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 class ItemFacturaTemp {
   final String productoId;
@@ -588,248 +1705,4 @@ class ItemFacturaTemp {
   double get subtotal => cantidad * precioUnitario;
   double get iva => aplicaIva ? subtotal * 0.15 : 0.0;
   double get total => subtotal + iva;
-}
-
-class _AgregarItemDialog extends StatefulWidget {
-  final List<Producto> productos;
-  final Function(ItemFacturaTemp) onAgregar;
-
-  const _AgregarItemDialog({required this.productos, required this.onAgregar});
-
-  @override
-  State<_AgregarItemDialog> createState() => _AgregarItemDialogState();
-}
-
-class _AgregarItemDialogState extends State<_AgregarItemDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _searchController = TextEditingController();
-  final _cantidadController = TextEditingController(text: '1');
-  final _precioController = TextEditingController();
-  Producto? _productoSeleccionado;
-  List<Producto> _productosFiltrados = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _productosFiltrados = widget.productos;
-    _searchController.addListener(_filtrar);
-  }
-
-  @override
-  void dispose() {
-    _searchController.removeListener(_filtrar);
-    _searchController.dispose();
-    _cantidadController.dispose();
-    _precioController.dispose();
-    super.dispose();
-  }
-
-  void _filtrar() {
-    final q = _searchController.text.toLowerCase();
-    setState(() {
-      _productosFiltrados = widget.productos
-          .where((p) =>
-              p.descripcion.toLowerCase().contains(q) ||
-              (p.barra ?? '').toLowerCase().contains(q))
-          .toList();
-    });
-  }
-
-  void _seleccionarProducto(Producto p) {
-    setState(() {
-      _productoSeleccionado = p;
-      _precioController.text = p.precio.toStringAsFixed(2);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.85,
-          maxWidth: 500,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Agregar Producto',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                // Buscador
-                TextField(
-                  controller: _searchController,
-                  decoration: const InputDecoration(
-                    labelText: 'Buscar producto...',
-                    hintText: 'Nombre o código de barras',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.search),
-                    isDense: true,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Producto seleccionado
-                if (_productoSeleccionado != null)
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.shade300),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.check_circle,
-                            color: Colors.blue, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _productoSeleccionado!.descripcion,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () =>
-                              setState(() => _productoSeleccionado = null),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // Lista de resultados
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: _productosFiltrados.length > 8
-                        ? 8
-                        : _productosFiltrados.length,
-                    itemBuilder: (ctx, i) {
-                      final p = _productosFiltrados[i];
-                      final selected = _productoSeleccionado?.id == p.id;
-                      return ListTile(
-                        dense: true,
-                        selected: selected,
-                        selectedTileColor: Colors.blue.withOpacity(0.1),
-                        title: Text(p.descripcion,
-                            style:
-                                const TextStyle(fontSize: 14)),
-                        subtitle: Text(
-                          '\$${p.precio.toStringAsFixed(2)}'
-                          '${p.tieneIva ? ' + IVA' : ''}'
-                          '${p.barra != null ? ' | ${p.barra}' : ''}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        onTap: () => _seleccionarProducto(p),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                // Cantidad y precio
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _cantidadController,
-                        decoration: const InputDecoration(
-                          labelText: 'Cantidad',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Requerido';
-                          final n = int.tryParse(v);
-                          if (n == null || n <= 0) return 'Inválido';
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _precioController,
-                        decoration: const InputDecoration(
-                          labelText: 'Precio',
-                          border: OutlineInputBorder(),
-                          prefixText: '\$ ',
-                          isDense: true,
-                        ),
-                        keyboardType:
-                            const TextInputType.numberWithOptions(decimal: true),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Requerido';
-                          final n = double.tryParse(v);
-                          if (n == null || n <= 0) return 'Inválido';
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Acciones
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancelar'),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () {
-                        if (_productoSeleccionado == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Seleccione un producto'),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                          return;
-                        }
-                        if (_formKey.currentState!.validate()) {
-                          widget.onAgregar(ItemFacturaTemp(
-                            productoId: _productoSeleccionado!.id,
-                            descripcion: _productoSeleccionado!.descripcion,
-                            cantidad:
-                                int.parse(_cantidadController.text),
-                            precioUnitario:
-                                double.parse(_precioController.text),
-                            aplicaIva: _productoSeleccionado!.tieneIva,
-                          ));
-                          Navigator.pop(context);
-                        }
-                      },
-                      child: const Text('Agregar'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

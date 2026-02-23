@@ -38,3 +38,12 @@ class CreateClienteEvent extends ClienteEvent {
   @override
   List<Object?> get props => [cliente];
 }
+
+class UpdateClienteEvent extends ClienteEvent {
+  final Cliente cliente;
+
+  const UpdateClienteEvent(this.cliente);
+
+  @override
+  List<Object?> get props => [cliente];
+}

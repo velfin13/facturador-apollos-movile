@@ -26,7 +26,6 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
   final _precio3Controller = TextEditingController();
   final _fraccionController = TextEditingController();
 
-  // Valores seleccionados
   int? _periodoSeleccionado;
   int? _usuarioSeleccionado;
   String _tipoSeleccionado = 'B';
@@ -36,7 +35,6 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
   bool _activo = true;
   static const double _compactFormBreakpoint = 430;
 
-  // Datos quemados para los dropdowns (luego vendrán del backend)
   final List<_DropdownItem<int>> _usuarios = [
     _DropdownItem(value: 1, label: 'Usuario actual'),
   ];
@@ -139,6 +137,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
           title: Text(
             widget.producto == null ? 'Nuevo Producto' : 'Editar Producto',
           ),
+          elevation: 0,
         ),
         body: Form(
           key: _formKey,
@@ -146,351 +145,277 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
             children: [
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Información básica
-                      _buildSectionCard(
-                        title: 'Informacion Basica',
-                        icon: Icons.info_outline,
-                        children: [
-                          TextFormField(
-                            controller: _descripcionController,
-                            decoration: const InputDecoration(
-                              labelText: 'Descripcion *',
-                              hintText: 'Ej: APRONAX 10MG',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.inventory_2),
-                            ),
-                            textCapitalization: TextCapitalization.characters,
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Ingrese la descripcion';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              if (constraints.maxWidth <
-                                  _compactFormBreakpoint) {
-                                return Column(
-                                  children: [
-                                    _buildDropdown<String>(
+                      // ── Header visual ──────────────────────────────────────
+                      _buildHeroHeader(theme),
+
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // ── Información básica ─────────────────────────
+                            _buildSectionCard(
+                              title: 'Información básica',
+                              icon: Icons.info_outline,
+                              children: [
+                                TextFormField(
+                                  controller: _descripcionController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Descripción *',
+                                    hintText: 'Ej: APRONAX 10MG',
+                                    prefixIcon: Icon(Icons.inventory_2),
+                                  ),
+                                  textCapitalization:
+                                      TextCapitalization.characters,
+                                  onChanged: (_) => setState(() {}),
+                                  validator: (value) {
+                                    if (value == null ||
+                                        value.trim().isEmpty) {
+                                      return 'Ingrese la descripción';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 14),
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final isCompact = constraints.maxWidth <
+                                        _compactFormBreakpoint;
+                                    final tipoField = _buildDropdown<String>(
                                       label: 'Tipo *',
-                                      icon: Icons.category,
+                                      icon: Icons.category_outlined,
                                       value: _tipoSeleccionado,
                                       items: _tipos,
-                                      onChanged: (value) {
-                                        setState(
-                                          () => _tipoSeleccionado = value!,
-                                        );
-                                      },
-                                    ),
-                                    const SizedBox(height: 12),
-                                    TextFormField(
+                                      onChanged: (value) => setState(
+                                        () => _tipoSeleccionado = value!,
+                                      ),
+                                    );
+                                    final barraField = TextFormField(
                                       controller: _barraController,
                                       decoration: const InputDecoration(
-                                        labelText: 'Codigo de Barras',
-                                        border: OutlineInputBorder(),
+                                        labelText: 'Código de barras',
                                         prefixIcon: Icon(Icons.qr_code),
                                       ),
+                                    );
+
+                                    if (isCompact) {
+                                      return Column(
+                                        children: [
+                                          tipoField,
+                                          const SizedBox(height: 12),
+                                          barraField,
+                                        ],
+                                      );
+                                    }
+                                    return Row(
+                                      children: [
+                                        Expanded(child: tipoField),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: barraField),
+                                      ],
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 14),
+                                _buildReadOnlyField(
+                                  label: 'Período del negocio',
+                                  icon: Icons.calendar_today_outlined,
+                                  value: _periodoSeleccionado?.toString() ??
+                                      'No definido',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // ── Precios ────────────────────────────────────
+                            _buildSectionCard(
+                              title: 'Precios',
+                              icon: Icons.attach_money,
+                              children: [
+                                TextFormField(
+                                  controller: _precio1Controller,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Precio 1 (Principal) *',
+                                    prefixIcon: Icon(Icons.sell),
+                                    prefixText: '\$ ',
+                                  ),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.allow(
+                                      RegExp(r'^\d+\.?\d{0,2}'),
                                     ),
                                   ],
-                                );
-                              }
-
-                              return Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildDropdown<String>(
-                                      label: 'Tipo *',
-                                      icon: Icons.category,
-                                      value: _tipoSeleccionado,
-                                      items: _tipos,
-                                      onChanged: (value) {
-                                        setState(
-                                          () => _tipoSeleccionado = value!,
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _barraController,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Codigo de Barras',
-                                        border: OutlineInputBorder(),
-                                        prefixIcon: Icon(Icons.qr_code),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          _buildReadOnlyField(
-                            label: 'Periodo del negocio',
-                            icon: Icons.calendar_today,
-                            value:
-                                _periodoSeleccionado?.toString() ??
-                                'No definido',
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Precios
-                      _buildSectionCard(
-                        title: 'Precios',
-                        icon: Icons.attach_money,
-                        children: [
-                          TextFormField(
-                            controller: _precio1Controller,
-                            decoration: const InputDecoration(
-                              labelText: 'Precio 1 (Principal) *',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.sell),
-                              prefixText: '\$ ',
-                            ),
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            inputFormatters: [
-                              FilteringTextInputFormatter.allow(
-                                RegExp(r'^\d+\.?\d{0,2}'),
-                              ),
-                            ],
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Ingrese el precio';
-                              }
-                              final precio = double.tryParse(value);
-                              if (precio == null || precio <= 0) {
-                                return 'Precio invalido';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              if (constraints.maxWidth <
-                                  _compactFormBreakpoint) {
-                                return Column(
-                                  children: [
-                                    TextFormField(
+                                  validator: (value) {
+                                    if (value == null ||
+                                        value.trim().isEmpty) {
+                                      return 'Ingrese el precio';
+                                    }
+                                    final precio = double.tryParse(value);
+                                    if (precio == null || precio <= 0) {
+                                      return 'Precio inválido';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 14),
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final isCompact = constraints.maxWidth <
+                                        _compactFormBreakpoint;
+                                    final p2 = TextFormField(
                                       controller: _precio2Controller,
                                       decoration: const InputDecoration(
                                         labelText: 'Precio 2',
-                                        border: OutlineInputBorder(),
-                                        prefixIcon: Icon(Icons.sell_outlined),
+                                        prefixIcon:
+                                            Icon(Icons.sell_outlined),
                                         prefixText: '\$ ',
                                       ),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
+                                      keyboardType: const TextInputType
+                                          .numberWithOptions(decimal: true),
                                       inputFormatters: [
                                         FilteringTextInputFormatter.allow(
                                           RegExp(r'^\d+\.?\d{0,2}'),
                                         ),
                                       ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    TextFormField(
+                                    );
+                                    final p3 = TextFormField(
                                       controller: _precio3Controller,
                                       decoration: const InputDecoration(
                                         labelText: 'Precio 3',
-                                        border: OutlineInputBorder(),
-                                        prefixIcon: Icon(Icons.sell_outlined),
+                                        prefixIcon:
+                                            Icon(Icons.sell_outlined),
                                         prefixText: '\$ ',
                                       ),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
+                                      keyboardType: const TextInputType
+                                          .numberWithOptions(decimal: true),
                                       inputFormatters: [
                                         FilteringTextInputFormatter.allow(
                                           RegExp(r'^\d+\.?\d{0,2}'),
                                         ),
                                       ],
-                                    ),
-                                  ],
-                                );
-                              }
+                                    );
+                                    if (isCompact) {
+                                      return Column(
+                                        children: [
+                                          p2,
+                                          const SizedBox(height: 12),
+                                          p3,
+                                        ],
+                                      );
+                                    }
+                                    return Row(
+                                      children: [
+                                        Expanded(child: p2),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: p3),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
 
-                              return Row(
-                                children: [
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _precio2Controller,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Precio 2',
-                                        border: OutlineInputBorder(),
-                                        prefixIcon: Icon(Icons.sell_outlined),
-                                        prefixText: '\$ ',
-                                      ),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(
-                                          RegExp(r'^\d+\.?\d{0,2}'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextFormField(
-                                      controller: _precio3Controller,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Precio 3',
-                                        border: OutlineInputBorder(),
-                                        prefixIcon: Icon(Icons.sell_outlined),
-                                        prefixText: '\$ ',
-                                      ),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(
-                                          RegExp(r'^\d+\.?\d{0,2}'),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Impuestos y configuración
-                      _buildSectionCard(
-                        title: 'Impuestos y Configuracion',
-                        icon: Icons.settings,
-                        children: [
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              if (constraints.maxWidth <
-                                  _compactFormBreakpoint) {
-                                return Column(
-                                  children: [
-                                    _buildDropdown<int>(
+                            // ── Impuestos y configuración ──────────────────
+                            _buildSectionCard(
+                              title: 'Impuestos y configuración',
+                              icon: Icons.tune,
+                              children: [
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final isCompact = constraints.maxWidth <
+                                        _compactFormBreakpoint;
+                                    final impuestoField = _buildDropdown<int>(
                                       label: 'Impuesto *',
-                                      icon: Icons.receipt,
+                                      icon: Icons.receipt_outlined,
                                       value: _impuestoSeleccionado,
                                       items: _impuestos,
-                                      onChanged: (value) {
-                                        setState(
-                                          () => _impuestoSeleccionado = value,
-                                        );
-                                      },
-                                    ),
-                                    const SizedBox(height: 12),
-                                    _buildDropdown<int>(
+                                      onChanged: (value) => setState(
+                                        () => _impuestoSeleccionado = value,
+                                      ),
+                                    );
+                                    final estadoField = _buildDropdown<int>(
                                       label: 'Estado *',
-                                      icon: Icons.flag,
+                                      icon: Icons.flag_outlined,
                                       value: _estadoItemSeleccionado,
                                       items: _estadosItem,
-                                      onChanged: (value) {
-                                        setState(
-                                          () => _estadoItemSeleccionado = value,
-                                        );
-                                      },
-                                    ),
+                                      onChanged: (value) => setState(
+                                        () =>
+                                            _estadoItemSeleccionado = value,
+                                      ),
+                                    );
+                                    if (isCompact) {
+                                      return Column(
+                                        children: [
+                                          impuestoField,
+                                          const SizedBox(height: 12),
+                                          estadoField,
+                                        ],
+                                      );
+                                    }
+                                    return Row(
+                                      children: [
+                                        Expanded(child: impuestoField),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: estadoField),
+                                      ],
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 14),
+                                TextFormField(
+                                  controller: _fraccionController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Fracción',
+                                    hintText: 'Unidades por paquete',
+                                    prefixIcon: Icon(Icons.grid_view),
+                                  ),
+                                  keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
                                   ],
-                                );
-                              }
+                                ),
+                                const SizedBox(height: 16),
 
-                              return Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildDropdown<int>(
-                                      label: 'Impuesto *',
-                                      icon: Icons.receipt,
-                                      value: _impuestoSeleccionado,
-                                      items: _impuestos,
-                                      onChanged: (value) {
-                                        setState(
-                                          () => _impuestoSeleccionado = value,
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: _buildDropdown<int>(
-                                      label: 'Estado *',
-                                      icon: Icons.flag,
-                                      value: _estadoItemSeleccionado,
-                                      items: _estadosItem,
-                                      onChanged: (value) {
-                                        setState(
-                                          () => _estadoItemSeleccionado = value,
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _fraccionController,
-                            decoration: const InputDecoration(
-                              labelText: 'Fraccion',
-                              hintText: 'Unidades por paquete',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.grid_view),
+                                // ── Toggles visuales ──────────────────────
+                                _buildToggleCard(
+                                  icon: Icons.percent,
+                                  title: 'Aplica IVA',
+                                  subtitle: 'Este producto grava impuesto',
+                                  value: _aplicaIva,
+                                  activeColor:
+                                      Colors.orange.shade700,
+                                  onChanged: (v) =>
+                                      setState(() => _aplicaIva = v),
+                                ),
+                                const SizedBox(height: 10),
+                                _buildToggleCard(
+                                  icon: Icons.check_circle_outline,
+                                  title: 'Producto activo',
+                                  subtitle:
+                                      'Visible en ventas y catálogo',
+                                  value: _activo,
+                                  activeColor:
+                                      Theme.of(context).colorScheme.primary,
+                                  onChanged: (v) =>
+                                      setState(() => _activo = v),
+                                ),
+                              ],
                             ),
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          SwitchListTile(
-                            title: const Text('Aplica IVA'),
-                            subtitle: const Text(
-                              'Marcar si este producto grava IVA',
-                            ),
-                            value: _aplicaIva,
-                            onChanged: (value) {
-                              setState(() => _aplicaIva = value);
-                            },
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                          SwitchListTile(
-                            title: const Text('Producto Activo'),
-                            subtitle: const Text(
-                              'Desactivar para ocultar en ventas',
-                            ),
-                            value: _activo,
-                            onChanged: (value) {
-                              setState(() => _activo = value);
-                            },
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
 
-              // Botones de acción
               _buildBottomActions(context),
             ],
           ),
@@ -499,6 +424,169 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
     );
   }
 
+  // ── Hero header ─────────────────────────────────────────────────────────────
+  Widget _buildHeroHeader(ThemeData theme) {
+    final isEditing = widget.producto != null;
+    final color = _activo
+        ? theme.colorScheme.primary
+        : theme.colorScheme.error;
+    final iconData =
+        _tipoSeleccionado == 'B' ? Icons.inventory_2 : Icons.design_services;
+    final descripcion = _descripcionController.text.trim();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color, color.withValues(alpha: 0.75)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Avatar
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(iconData, color: Colors.white, size: 30),
+          ),
+          const SizedBox(width: 16),
+
+          // Nombre + estado
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isEditing
+                      ? (descripcion.isNotEmpty
+                          ? descripcion
+                          : widget.producto!.descripcion)
+                      : (descripcion.isNotEmpty
+                          ? descripcion
+                          : 'Nuevo producto'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _HeaderBadge(
+                      label: _tipoSeleccionado == 'B' ? 'Bien' : 'Servicio',
+                    ),
+                    const SizedBox(width: 6),
+                    _HeaderBadge(
+                      label: _activo ? 'Activo' : 'Inactivo',
+                      icon: _activo
+                          ? Icons.check_circle
+                          : Icons.cancel,
+                    ),
+                    if (_aplicaIva) ...[
+                      const SizedBox(width: 6),
+                      const _HeaderBadge(label: 'IVA'),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Toggle visual (reemplaza SwitchListTile) ────────────────────────────────
+  Widget _buildToggleCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    Color? activeColor,
+  }) {
+    final theme = Theme.of(context);
+    final color = activeColor ?? theme.colorScheme.primary;
+    final isOn = value;
+
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isOn ? color.withValues(alpha: 0.07) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isOn ? color.withValues(alpha: 0.5) : theme.colorScheme.outlineVariant,
+            width: isOn ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: isOn
+                    ? color.withValues(alpha: 0.15)
+                    : theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isOn ? color : theme.colorScheme.outline,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: isOn ? color : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: color,
+              activeTrackColor: color.withValues(alpha: 0.4),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Section card ────────────────────────────────────────────────────────────
   Widget _buildSectionCard({
     required String title,
     required IconData icon,
@@ -506,37 +594,52 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
   }) {
     final theme = Theme.of(context);
 
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: Row(
               children: [
-                Icon(icon, size: 20, color: theme.colorScheme.primary),
-                const SizedBox(width: 8),
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 16,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Text(
                   title,
-                  style: theme.textTheme.titleMedium?.copyWith(
+                  style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            child: Column(children: children),
+          ),
+        ],
       ),
     );
   }
 
+  // ── Dropdown ─────────────────────────────────────────────────────────────────
   Widget _buildDropdown<T>({
     required String label,
     required IconData icon,
@@ -549,12 +652,8 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
       isExpanded: true,
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
         prefixIcon: Icon(icon),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 16,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
       ),
       items: items.map((item) {
         return DropdownMenuItem<T>(
@@ -578,6 +677,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
     );
   }
 
+  // ── Campo solo lectura ───────────────────────────────────────────────────────
   Widget _buildReadOnlyField({
     required String label,
     required IconData icon,
@@ -586,92 +686,81 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
     return TextFormField(
       initialValue: value,
       enabled: false,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        prefixIcon: Icon(icon),
-      ),
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
     );
   }
 
+  // ── Botones de acción ────────────────────────────────────────────────────────
   Widget _buildBottomActions(BuildContext context) {
     return Container(
       padding: EdgeInsets.only(
         left: 16,
         right: 16,
-        top: 16,
-        bottom: 16 + MediaQuery.of(context).padding.bottom,
+        top: 12,
+        bottom: 12 + MediaQuery.of(context).padding.bottom,
       ),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, -3),
           ),
         ],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 360;
-          final actionButtons = <Widget>[
-            SizedBox(
-              width: compact ? double.infinity : null,
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close),
-                label: const Text('Cancelar'),
-              ),
+          final cancel = SizedBox(
+            width: compact ? double.infinity : null,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.close),
+              label: const Text('Cancelar'),
             ),
-            SizedBox(
-              width: compact ? double.infinity : null,
-              child: BlocBuilder<ProductoBloc, ProductoState>(
-                builder: (context, state) {
-                  final isLoading = state is ProductoCreating;
-                  final isUpdating = state is ProductoUpdating;
-                  final isSaving = isLoading || isUpdating;
-                  return FilledButton.icon(
-                    onPressed: isSaving ? null : _guardarProducto,
-                    icon: isSaving
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(
-                      isSaving
-                          ? 'Guardando...'
-                          : widget.producto == null
-                          ? 'Guardar Producto'
-                          : 'Actualizar Producto',
-                    ),
-                  );
-                },
-              ),
+          );
+          final save = SizedBox(
+            width: compact ? double.infinity : null,
+            child: BlocBuilder<ProductoBloc, ProductoState>(
+              builder: (context, state) {
+                final isSaving =
+                    state is ProductoCreating || state is ProductoUpdating;
+                return FilledButton.icon(
+                  onPressed: isSaving ? null : _guardarProducto,
+                  icon: isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    isSaving
+                        ? 'Guardando...'
+                        : widget.producto == null
+                            ? 'Guardar producto'
+                            : 'Actualizar producto',
+                  ),
+                );
+              },
             ),
-          ];
+          );
 
           if (compact) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                actionButtons[0],
-                const SizedBox(height: 10),
-                actionButtons[1],
-              ],
+              children: [cancel, const SizedBox(height: 10), save],
             );
           }
-
           return Row(
             children: [
-              Expanded(child: actionButtons[0]),
+              Expanded(child: cancel),
               const SizedBox(width: 12),
-              Expanded(flex: 2, child: actionButtons[1]),
+              Expanded(flex: 2, child: save),
             ],
           );
         },
@@ -679,6 +768,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
     );
   }
 
+  // ── Sync período ─────────────────────────────────────────────────────────────
   Future<void> _syncPeriodoFromServer() async {
     try {
       final response = await getIt<DioClient>().get('/Empresas');
@@ -713,6 +803,7 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
     }
   }
 
+  // ── Guardar ──────────────────────────────────────────────────────────────────
   void _guardarProducto() {
     if (_formKey.currentState!.validate()) {
       final productoActual = widget.producto;
@@ -751,9 +842,44 @@ class _CrearProductoPageState extends State<CrearProductoPage> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _HeaderBadge extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  const _HeaderBadge({required this.label, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 11, color: Colors.white),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DropdownItem<T> {
   final T value;
   final String label;
-
   const _DropdownItem({required this.value, required this.label});
 }

@@ -41,3 +41,14 @@ class ClienteCreated extends ClienteState {
   @override
   List<Object?> get props => [cliente];
 }
+
+class ClienteUpdating extends ClienteState {}
+
+class ClienteUpdated extends ClienteState {
+  final Cliente cliente;
+
+  const ClienteUpdated(this.cliente);
+
+  @override
+  List<Object?> get props => [cliente];
+}

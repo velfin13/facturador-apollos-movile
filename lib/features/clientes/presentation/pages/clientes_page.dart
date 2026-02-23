@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../injection/injection_container.dart';
+import '../../domain/entities/cliente.dart';
 import '../bloc/cliente_bloc.dart';
 import '../widgets/cliente_list_widget.dart';
 import 'crear_cliente_page.dart';
@@ -53,65 +54,134 @@ class _ClientesPageState extends State<ClientesPage> {
     });
   }
 
+  Future<void> _abrirFormulario(
+    BuildContext context, {
+    Cliente? cliente,
+  }) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: context.read<ClienteBloc>(),
+          child: CrearClientePage(cliente: cliente),
+        ),
+      ),
+    );
+
+    if (result == true && context.mounted) {
+      context.read<ClienteBloc>().add(GetClientesEvent());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return BlocProvider(
       create: (_) => getIt<ClienteBloc>()..add(GetClientesEvent()),
       child: Builder(
         builder: (context) => Scaffold(
           body: Column(
             children: [
-              // Buscador
+              // ── Buscador ──────────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: TextField(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: SearchBar(
                   controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Buscar por nombre, RUC o ciudad...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              context.read<ClienteBloc>().add(SearchClientesEvent(''));
-                              setState(() {});
-                            },
-                          )
-                        : null,
-                    isDense: true,
-                  ),
+                  hintText: 'Buscar por nombre, RUC, ciudad...',
+                  leading: const Icon(Icons.search),
+                  trailing: [
+                    if (_searchController.text.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          _searchController.clear();
+                          context
+                              .read<ClienteBloc>()
+                              .add(SearchClientesEvent(''));
+                          setState(() {});
+                        },
+                      ),
+                  ],
                   onChanged: (v) => _onSearchChanged(context, v),
+                  elevation: const WidgetStatePropertyAll(0),
+                  backgroundColor: WidgetStatePropertyAll(
+                    theme.colorScheme.surfaceContainerLow,
+                  ),
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
+                  ),
+                  padding: const WidgetStatePropertyAll(
+                    EdgeInsets.symmetric(horizontal: 16),
+                  ),
                 ),
               ),
-              // Chips de filtro por estado
+
+              // ── Filtros ───────────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
                 child: Row(
                   children: [
                     _FilterChip(
                       label: 'Todos',
                       selected: _filtro == _FiltroEstadoCliente.todos,
-                      onTap: () => _applyStatusFilter(context, _FiltroEstadoCliente.todos),
+                      onTap: () => _applyStatusFilter(
+                        context,
+                        _FiltroEstadoCliente.todos,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     _FilterChip(
                       label: 'Activos',
+                      icon: Icons.check_circle_outline,
                       selected: _filtro == _FiltroEstadoCliente.activos,
-                      onTap: () => _applyStatusFilter(context, _FiltroEstadoCliente.activos),
+                      onTap: () => _applyStatusFilter(
+                        context,
+                        _FiltroEstadoCliente.activos,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     _FilterChip(
                       label: 'Inactivos',
+                      icon: Icons.cancel_outlined,
                       selected: _filtro == _FiltroEstadoCliente.inactivos,
-                      onTap: () => _applyStatusFilter(context, _FiltroEstadoCliente.inactivos),
+                      onTap: () => _applyStatusFilter(
+                        context,
+                        _FiltroEstadoCliente.inactivos,
+                      ),
                     ),
                   ],
                 ),
               ),
-              // Lista
+
+              // ── Lista ─────────────────────────────────────────────────────
               Expanded(
-                child: BlocBuilder<ClienteBloc, ClienteState>(
+                child: BlocConsumer<ClienteBloc, ClienteState>(
+                  listenWhen: (_, curr) =>
+                      curr is ClienteUpdated || curr is ClienteError,
+                  listener: (context, state) {
+                    if (state is ClienteUpdated) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Cliente actualizado'),
+                          backgroundColor: Colors.green.shade600,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                    if (state is ClienteError) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(state.message),
+                          backgroundColor: theme.colorScheme.error,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
                   buildWhen: (prev, curr) =>
                       curr is ClienteLoading ||
                       curr is ClienteLoaded ||
@@ -119,7 +189,9 @@ class _ClientesPageState extends State<ClientesPage> {
                   builder: (context, state) {
                     if (state is ClienteLoading) {
                       return const Center(child: CircularProgressIndicator());
-                    } else if (state is ClienteLoaded) {
+                    }
+
+                    if (state is ClienteLoaded) {
                       return RefreshIndicator(
                         onRefresh: () async =>
                             context.read<ClienteBloc>().add(GetClientesEvent()),
@@ -127,55 +199,76 @@ class _ClientesPageState extends State<ClientesPage> {
                           clientes: state.clientes,
                           hasMore: state.hasMore,
                           total: state.total,
-                          onLoadMore: () =>
-                              context.read<ClienteBloc>().add(LoadMoreClientesEvent()),
+                          onLoadMore: () => context
+                              .read<ClienteBloc>()
+                              .add(LoadMoreClientesEvent()),
+                          onEdit: (cliente) =>
+                              _abrirFormulario(context, cliente: cliente),
                         ),
                       );
-                    } else if (state is ClienteError) {
+                    }
+
+                    if (state is ClienteError) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.error_outline, size: 60, color: Colors.red),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Error: ${state.message}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 16),
+                            Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.errorContainer,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.error_outline,
+                                size: 36,
+                                color: theme.colorScheme.error,
+                              ),
                             ),
                             const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () =>
-                                  context.read<ClienteBloc>().add(GetClientesEvent()),
-                              child: const Text('Reintentar'),
+                            Text(
+                              'Error al cargar clientes',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 32),
+                              child: Text(
+                                state.message,
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.outline,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            FilledButton.icon(
+                              onPressed: () => context
+                                  .read<ClienteBloc>()
+                                  .add(GetClientesEvent()),
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Reintentar'),
                             ),
                           ],
                         ),
                       );
                     }
+
                     return const Center(child: Text('No hay datos'));
                   },
                 ),
               ),
             ],
           ),
-          floatingActionButton: FloatingActionButton(
+          floatingActionButton: FloatingActionButton.extended(
             heroTag: 'fab_clientes',
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BlocProvider(
-                    create: (_) => getIt<ClienteBloc>(),
-                    child: const CrearClientePage(),
-                  ),
-                ),
-              );
-              if (result == true && context.mounted) {
-                context.read<ClienteBloc>().add(GetClientesEvent());
-              }
-            },
-            child: const Icon(Icons.add),
+            onPressed: () => _abrirFormulario(context),
+            icon: const Icon(Icons.person_add),
+            label: const Text('Nuevo cliente'),
           ),
         ),
       ),
@@ -183,15 +276,19 @@ class _ClientesPageState extends State<ClientesPage> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final IconData? icon;
 
   const _FilterChip({
     required this.label,
     required this.selected,
     required this.onTap,
+    this.icon,
   });
 
   @override
@@ -201,19 +298,32 @@ class _FilterChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? color : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: selected ? color : Colors.grey.shade400),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-            color: selected ? Colors.white : Colors.grey.shade700,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 14,
+                color: selected ? Colors.white : Colors.grey.shade600,
+              ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                color: selected ? Colors.white : Colors.grey.shade700,
+              ),
+            ),
+          ],
         ),
       ),
     );
