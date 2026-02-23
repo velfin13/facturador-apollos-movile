@@ -15,7 +15,8 @@ import '../../../../injection/injection_container.dart';
 class _FormaPago {
   final int id;
   final String descripcion;
-  const _FormaPago(this.id, this.descripcion);
+  final bool esDefault;
+  const _FormaPago(this.id, this.descripcion, {this.esDefault = false});
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,13 +64,18 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
           return _FormaPago(
             (e['idSysFcFormaPago'] as num).toInt(),
             (e['descripcion'] ?? 'Sin nombre').toString(),
+            // el campo puede llamarse esDefault, esPorDefecto, esPredet…
+            esDefault: (e['esDefault'] ?? e['esPorDefecto'] ?? false) == true,
           );
         }).toList();
         if (mounted) {
           if (lista.isNotEmpty) {
+            // Busca el marcado como default; si ninguno, usa el primero
+            final porDefecto =
+                lista.firstWhere((f) => f.esDefault, orElse: () => lista.first);
             setState(() {
               _formasPago = lista;
-              _formaPagoSeleccionada = lista.first;
+              _formaPagoSeleccionada = porDefecto;
               _loadingFormasPago = false;
             });
           } else {
@@ -85,15 +91,16 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
   }
 
   void _usarFormasPagoFallback() {
+    const efectivo = _FormaPago(1, 'EFECTIVO', esDefault: true);
     setState(() {
       _formasPago = const [
-        _FormaPago(1, 'EFECTIVO'),
+        efectivo,
         _FormaPago(2, 'CREDITO'),
         _FormaPago(3, 'TARJETA DE CRÉDITO'),
         _FormaPago(4, 'TARJETA DE DÉBITO'),
         _FormaPago(5, 'TRANSFERENCIA BANCARIA'),
       ];
-      _formaPagoSeleccionada = const _FormaPago(1, 'EFECTIVO');
+      _formaPagoSeleccionada = efectivo;
       _loadingFormasPago = false;
     });
   }
@@ -528,72 +535,165 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       icon: Icons.payments_outlined,
       title: 'Forma de Pago',
       child: _loadingFormasPago
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Center(
+          ? Container(
+              height: 52,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+              ),
+              child: const Center(
                 child: SizedBox(
-                  width: 24,
-                  height: 24,
+                  width: 20,
+                  height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
             )
-          : Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _formasPago.map((fp) {
-                final selected = _formaPagoSeleccionada?.id == fp.id;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? theme.colorScheme.primaryContainer
-                        : theme.colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: selected
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.outlineVariant,
-                      width: selected ? 1.5 : 1,
-                    ),
+          : DropdownButtonHideUnderline(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant,
                   ),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () => setState(() => _formaPagoSeleccionada = fp),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
+                ),
+                child: DropdownButton<_FormaPago>(
+                  value: _formaPagoSeleccionada,
+                  isExpanded: true,
+                  borderRadius: BorderRadius.circular(12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  icon: Icon(
+                    Icons.expand_more_rounded,
+                    color: theme.colorScheme.outline,
+                  ),
+                  // Ítem seleccionado visible en el campo
+                  selectedItemBuilder: (ctx) => _formasPago.map((fp) {
+                    return Align(
+                      alignment: Alignment.centerLeft,
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            _iconForFormaPago(fp.descripcion),
-                            size: 16,
-                            color: selected
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.outline,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            fp.descripcion,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: selected
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                              color: selected
-                                  ? theme.colorScheme.primary
-                                  : theme.colorScheme.onSurface,
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              _iconForFormaPago(fp.descripcion),
+                              size: 16,
+                              color: theme.colorScheme.primary,
                             ),
                           ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              fp.descripcion,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (fp.esDefault)
+                            Container(
+                              margin: const EdgeInsets.only(right: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Por defecto',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
                         ],
                       ),
-                    ),
-                  ),
-                );
-              }).toList(),
+                    );
+                  }).toList(),
+                  // Ítems del menú desplegable
+                  items: _formasPago.map((fp) {
+                    final isSelected = _formaPagoSeleccionada?.id == fp.id;
+                    return DropdownMenuItem<_FormaPago>(
+                      value: fp,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? theme.colorScheme.primaryContainer
+                                  : theme.colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: Icon(
+                              _iconForFormaPago(fp.descripcion),
+                              size: 17,
+                              color: isSelected
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.outline,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              fp.descripcion,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.normal,
+                                color: isSelected
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurface,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (fp.esDefault)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                'Defecto',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                          if (isSelected) ...[
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.check_circle_rounded,
+                              size: 18,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (fp) {
+                    if (fp != null) setState(() => _formaPagoSeleccionada = fp);
+                  },
+                ),
+              ),
             ),
     );
   }
