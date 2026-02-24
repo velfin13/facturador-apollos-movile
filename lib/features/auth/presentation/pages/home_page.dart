@@ -1,6 +1,8 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import '../bloc/auth_bloc.dart';
 import '../../domain/entities/usuario.dart';
 import '../../../../core/network/dio_client.dart';
@@ -195,24 +197,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
+      builder: (context) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            CircleAvatar(
+              const SizedBox(height: 24),
+              CircleAvatar(
               radius: 40,
               backgroundColor: theme.colorScheme.primaryContainer,
               child: Text(
@@ -270,6 +274,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 _showSubscriptionSheet(context);
               },
             ),
+            ListTile(
+              leading: Icon(
+                Icons.security_outlined,
+                color: theme.colorScheme.primary,
+              ),
+              title: const Text('Firma digital'),
+              subtitle: const Text('Gestionar certificado .p12'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.pop(context);
+                _showFirmaDigitalSheet(context);
+              },
+            ),
             const Divider(),
             if (widget.usuario.tieneMultiplesRoles) ...[
               ListTile(
@@ -305,6 +322,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ],
         ),
       ),
+    ),
+  );
+  }
+
+  void _showFirmaDigitalSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const _FirmaDigitalSheet(),
     );
   }
 
@@ -1363,6 +1393,428 @@ class _PaymentProcessingDialogState extends State<_PaymentProcessingDialog>
                 fontWeight: FontWeight.w500,
               ),
               overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Firma Digital Sheet ──────────────────────────────────────────────────────
+
+class _FirmaDigitalSheet extends StatefulWidget {
+  const _FirmaDigitalSheet();
+
+  @override
+  State<_FirmaDigitalSheet> createState() => _FirmaDigitalSheetState();
+}
+
+class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
+  String? _archivoNombre;
+  Uint8List? _archivoBytes;
+  final _claveController = TextEditingController();
+  bool _claveVisible = false;
+  bool _uploading = false;
+  String? _certificadoActual;
+  DateTime? _vencimiento;
+  bool _loadingTenant = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarCertificadoActual();
+  }
+
+  @override
+  void dispose() {
+    _claveController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargarCertificadoActual() async {
+    try {
+      final response = await getIt<DioClient>().get('/Tenants/current');
+      if (response.data is Map && response.data['data'] is Map) {
+        final data = response.data['data'] as Map;
+        if (mounted) {
+          DateTime? venc;
+          final vencRaw = data['certificadoVencimiento']?.toString();
+          if (vencRaw != null && vencRaw.isNotEmpty) {
+            venc = DateTime.tryParse(vencRaw)?.toLocal();
+          }
+          setState(() {
+            _certificadoActual = data['certificadoNombre']?.toString();
+            _vencimiento = venc;
+            _loadingTenant = false;
+          });
+        }
+      } else {
+        if (mounted) setState(() => _loadingTenant = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingTenant = false);
+    }
+  }
+
+  Future<void> _seleccionarArchivo() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['p12'],
+      withData: true,
+    );
+    if (result != null && result.files.isNotEmpty && mounted) {
+      final file = result.files.single;
+      setState(() {
+        _archivoNombre = file.name;
+        _archivoBytes = file.bytes;
+      });
+    }
+  }
+
+  Future<void> _subirCertificado() async {
+    if (_archivoBytes == null || _archivoNombre == null) {
+      _showSnack('Selecciona un archivo .p12 primero');
+      return;
+    }
+    if (_claveController.text.trim().isEmpty) {
+      _showSnack('Ingresa la clave del certificado');
+      return;
+    }
+
+    setState(() => _uploading = true);
+
+    try {
+      final formData = FormData.fromMap({
+        'certificado': MultipartFile.fromBytes(
+          _archivoBytes!,
+          filename: _archivoNombre,
+        ),
+        'clave': _claveController.text.trim(),
+      });
+
+      await getIt<DioClient>().post('/Tenants/certificado', data: formData);
+
+      if (mounted) {
+        // Recargar tenant para obtener la nueva fecha de vencimiento
+        final nombreSubido = _archivoNombre;
+        setState(() {
+          _certificadoActual = nombreSubido;
+          _archivoNombre = null;
+          _archivoBytes = null;
+          _claveController.clear();
+          _uploading = false;
+        });
+        _showSnack('Certificado subido correctamente', isError: false);
+        _cargarCertificadoActual();
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        setState(() => _uploading = false);
+        final msg = (e.response?.data is Map)
+            ? (e.response!.data['message']?.toString() ??
+                'Error al subir el certificado')
+            : 'Error al subir el certificado';
+        _showSnack(msg);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _uploading = false);
+        _showSnack('Error inesperado al subir el certificado');
+      }
+    }
+  }
+
+  void _showSnack(String msg, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor:
+            isError ? Colors.red.shade700 : Colors.green.shade700,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  bool get _tieneCert =>
+      _certificadoActual != null && _certificadoActual!.isNotEmpty;
+
+  /// null = sin cert, false = vencido, true = vigente
+  bool? get _certVigente {
+    if (!_tieneCert || _vencimiento == null) return null;
+    return _vencimiento!.isAfter(DateTime.now());
+  }
+
+  bool get _certPorVencer {
+    if (_vencimiento == null) return false;
+    return _certVigente == true &&
+        _vencimiento!.difference(DateTime.now()).inDays <= 30;
+  }
+
+  String _formatFecha(DateTime d) {
+    const meses = [
+      'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+      'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+    ];
+    return '${d.day.toString().padLeft(2, '0')} ${meses[d.month - 1]} ${d.year}';
+  }
+
+  Widget _buildCertStatus(ThemeData theme) {
+    if (!_tieneCert) {
+      return Row(
+        children: [
+          Icon(Icons.warning_amber_outlined,
+              color: Colors.orange.shade700, size: 22),
+          const SizedBox(width: 10),
+          Text(
+            'Sin certificado',
+            style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.orange.shade700),
+          ),
+        ],
+      );
+    }
+
+    final expired = _certVigente == false;
+    final porVencer = _certPorVencer;
+    final iconColor = expired
+        ? Colors.red.shade700
+        : porVencer
+            ? Colors.amber.shade800
+            : Colors.green.shade700;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          expired
+              ? Icons.cancel_outlined
+              : porVencer
+                  ? Icons.warning_amber_outlined
+                  : Icons.check_circle_outline,
+          color: iconColor,
+          size: 22,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                expired
+                    ? 'Certificado vencido'
+                    : porVencer
+                        ? 'Certificado por vencer'
+                        : 'Certificado activo',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: iconColor),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _certificadoActual!,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: iconColor.withValues(alpha: 0.85)),
+              ),
+              if (_vencimiento != null) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(Icons.event_outlined, size: 13, color: iconColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Vence: ${_formatFecha(_vencimiento!)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: iconColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.security_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Firma Digital',
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // ── Estado actual del certificado ─────────────────────────────────
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: _loadingTenant
+                  ? theme.colorScheme.surfaceContainerLow
+                  : !_tieneCert
+                      ? Colors.orange.shade50
+                      : _certVigente == false
+                          ? Colors.red.shade50
+                          : _certPorVencer
+                              ? Colors.amber.shade50
+                              : Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _loadingTenant
+                    ? theme.colorScheme.outlineVariant
+                    : !_tieneCert
+                        ? Colors.orange.shade200
+                        : _certVigente == false
+                            ? Colors.red.shade200
+                            : _certPorVencer
+                                ? Colors.amber.shade300
+                                : Colors.green.shade200,
+              ),
+            ),
+            child: _loadingTenant
+                ? const Row(
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Verificando certificado...'),
+                    ],
+                  )
+                : _buildCertStatus(theme),
+          ),
+          const SizedBox(height: 24),
+
+          Text(
+            _tieneCert ? 'Reemplazar certificado' : 'Subir certificado',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          if (_tieneCert)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, bottom: 4),
+              child: Text(
+                'Sube un nuevo archivo .p12 para reemplazar el actual.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+
+          // ── Selector de archivo ───────────────────────────────────────────
+          OutlinedButton.icon(
+            onPressed: _uploading ? null : _seleccionarArchivo,
+            icon: Icon(
+              _archivoBytes != null
+                  ? Icons.check_circle_outline
+                  : Icons.attach_file,
+              size: 20,
+            ),
+            label: Text(
+              _archivoNombre ?? 'Seleccionar archivo .p12',
+              overflow: TextOverflow.ellipsis,
+            ),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+              alignment: Alignment.centerLeft,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Campo de clave ─────────────────────────────────────────────────
+          TextField(
+            controller: _claveController,
+            obscureText: !_claveVisible,
+            enabled: !_uploading,
+            decoration: InputDecoration(
+              labelText: _tieneCert
+                  ? 'Nueva clave del certificado'
+                  : 'Clave del certificado',
+              border: const OutlineInputBorder(),
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _claveVisible ? Icons.visibility_off : Icons.visibility,
+                ),
+                onPressed: () =>
+                    setState(() => _claveVisible = !_claveVisible),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // ── Botón subir ────────────────────────────────────────────────────
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed:
+                  (_uploading || _archivoBytes == null)
+                      ? null
+                      : _subirCertificado,
+              icon: _uploading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : Icon(_tieneCert ? Icons.swap_horiz : Icons.upload_rounded),
+              label: Text(
+                _uploading
+                    ? 'Subiendo...'
+                    : _tieneCert
+                        ? 'Reemplazar certificado'
+                        : 'Subir certificado',
+              ),
             ),
           ),
         ],

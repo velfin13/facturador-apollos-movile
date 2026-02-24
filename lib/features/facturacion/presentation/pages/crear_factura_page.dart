@@ -166,7 +166,7 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
     }
   }
 
-  void _guardarFactura() {
+  Future<void> _guardarFactura() async {
     bool hasError = false;
     if (_clienteSeleccionado == null) {
       setState(() => _clienteError = true);
@@ -183,6 +183,22 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       hasError = true;
     }
     if (hasError) return;
+
+    // Verificar que el tenant tiene firma digital cargada
+    try {
+      final response = await getIt<DioClient>().get('/Tenants/current');
+      if (response.data is Map && response.data['data'] is Map) {
+        final data = response.data['data'] as Map;
+        final cert = data['certificadoNombre']?.toString();
+        if (cert == null || cert.trim().isEmpty) {
+          if (!mounted) return;
+          _mostrarAlertaSinFirma();
+          return;
+        }
+      }
+    } catch (_) {
+      // Si no se puede verificar, continuamos para no bloquear al usuario
+    }
 
     final itemsFactura = _items
         .map(
@@ -225,7 +241,32 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
       ],
     );
 
+    if (!mounted) return;
     context.read<FacturaBloc>().add(CreateFacturaEvent(factura));
+  }
+
+  void _mostrarAlertaSinFirma() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(
+          Icons.security_outlined,
+          size: 52,
+          color: Colors.orange,
+        ),
+        title: const Text('Firma digital requerida'),
+        content: const Text(
+          'Para emitir facturas necesitas subir tu certificado de firma digital (.p12).\n\n'
+          'Ve a tu perfil → Firma digital y sube tu certificado.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
   }
 
   IconData _iconForFormaPago(String desc) {
