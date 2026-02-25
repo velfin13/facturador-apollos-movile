@@ -217,113 +217,116 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 24),
               CircleAvatar(
-              radius: 40,
-              backgroundColor: theme.colorScheme.primaryContainer,
-              child: Text(
-                widget.usuario.nombre.isNotEmpty
-                    ? widget.usuario.nombre[0].toUpperCase()
-                    : 'U',
-                style: TextStyle(
-                  fontSize: 32,
+                radius: 40,
+                backgroundColor: theme.colorScheme.primaryContainer,
+                child: Text(
+                  widget.usuario.nombre.isNotEmpty
+                      ? widget.usuario.nombre[0].toUpperCase()
+                      : 'U',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                widget.usuario.nombre,
+                style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onPrimaryContainer,
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.usuario.nombre,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              widget.usuario.email,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: rolActivo.color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                rolActivo.displayName,
-                style: TextStyle(
-                  color: rolActivo.color,
-                  fontWeight: FontWeight.w600,
+              const SizedBox(height: 4),
+              Text(
+                widget.usuario.email,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            const Divider(),
-            ListTile(
-              leading: Icon(
-                Icons.workspace_premium_outlined,
-                color: theme.colorScheme.primary,
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: rolActivo.color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  rolActivo.displayName,
+                  style: TextStyle(
+                    color: rolActivo.color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
-              title: const Text('Plan y suscripcion'),
-              subtitle: const Text('Ver plan actual y actualizar'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.pop(context);
-                _showSubscriptionSheet(context);
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.security_outlined,
-                color: theme.colorScheme.primary,
-              ),
-              title: const Text('Firma digital'),
-              subtitle: const Text('Gestionar certificado .p12'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.pop(context);
-                _showFirmaDigitalSheet(context);
-              },
-            ),
-            const Divider(),
-            if (widget.usuario.tieneMultiplesRoles) ...[
+              const SizedBox(height: 24),
+              const Divider(),
               ListTile(
                 leading: Icon(
-                  Icons.swap_horiz,
+                  Icons.workspace_premium_outlined,
                   color: theme.colorScheme.primary,
                 ),
-                title: const Text('Cambiar rol'),
-                subtitle: Text(
-                  'Roles disponibles: ${widget.usuario.roles.length}',
-                  style: theme.textTheme.bodySmall,
-                ),
+                title: const Text('Plan y suscripcion'),
+                subtitle: const Text('Ver plan actual y actualizar'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   Navigator.pop(context);
-                  _showRoleSwitcher(context);
+                  _showSubscriptionSheet(context);
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  Icons.security_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+                title: const Text('Firma digital'),
+                subtitle: const Text('Gestionar certificado .p12'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showFirmaDigitalSheet(context);
                 },
               ),
               const Divider(),
-            ],
-            ListTile(
-              leading: Icon(Icons.logout, color: theme.colorScheme.error),
-              title: Text(
-                'Cerrar sesion',
-                style: TextStyle(color: theme.colorScheme.error),
+              if (widget.usuario.tieneMultiplesRoles) ...[
+                ListTile(
+                  leading: Icon(
+                    Icons.swap_horiz,
+                    color: theme.colorScheme.primary,
+                  ),
+                  title: const Text('Cambiar rol'),
+                  subtitle: Text(
+                    'Roles disponibles: ${widget.usuario.roles.length}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showRoleSwitcher(context);
+                  },
+                ),
+                const Divider(),
+              ],
+              ListTile(
+                leading: Icon(Icons.logout, color: theme.colorScheme.error),
+                title: Text(
+                  'Cerrar sesion',
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showLogoutConfirmation(context);
+                },
               ),
-              onTap: () {
-                Navigator.pop(context);
-                _showLogoutConfirmation(context);
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   void _showFirmaDigitalSheet(BuildContext context) {
@@ -458,9 +461,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final response = await getIt<DioClient>().get('/Subscriptions/current');
     final payload = response.data;
     if (payload is Map && payload['data'] is Map) {
-      return (payload['data'] as Map).map(
-        (k, v) => MapEntry(k.toString(), v),
-      );
+      return (payload['data'] as Map).map((k, v) => MapEntry(k.toString(), v));
     }
     return const {};
   }
@@ -478,10 +479,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<_SubscriptionViewData> _loadSubscriptionData() async {
-    final results = await Future.wait([
-      _getCurrentSubscription(),
-      _getPlans(),
-    ]);
+    final results = await Future.wait([_getCurrentSubscription(), _getPlans()]);
 
     return _SubscriptionViewData(
       current: results[0] as Map<String, dynamic>,
@@ -518,7 +516,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 42),
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                        size: 42,
+                      ),
                       const SizedBox(height: 12),
                       const Text('No se pudo cargar la suscripcion'),
                       const SizedBox(height: 12),
@@ -538,10 +540,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               final current = data.current;
               final plans = data.plans;
 
-              final subscriptionType =
-                  (current['subscriptionType'] ?? '').toString();
-              final normalizedSubscriptionType =
-                  subscriptionType.toUpperCase();
+              final subscriptionType = (current['subscriptionType'] ?? '')
+                  .toString();
+              final normalizedSubscriptionType = subscriptionType.toUpperCase();
               final currentPlanId = (current['planId'] ?? '').toString();
               double currentPlanMonthly = 0;
               if (currentPlanId.isNotEmpty) {
@@ -611,11 +612,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             children: [
                               Text(
                                 'Plan actual: ${subscriptionType.isEmpty ? 'Sin plan' : subscriptionType}',
-                                style: const TextStyle(fontWeight: FontWeight.w700),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                               const SizedBox(height: 6),
                               Text('Estado: $status'),
-                              Text('Facturas restantes: $remainingInvoices / $invoiceLimit'),
+                              Text(
+                                'Facturas restantes: $remainingInvoices / $invoiceLimit',
+                              ),
                               Text('Empresas permitidas: $maxCompanies'),
                             ],
                           ),
@@ -640,27 +645,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             final planCode = (plan['codigo'] ?? '').toString();
                             final planId = (plan['id'] ?? '').toString();
                             final planMonthlyValue =
-                                (plan['precioMensual'] as num?)?.toDouble() ?? 0;
+                                (plan['precioMensual'] as num?)?.toDouble() ??
+                                0;
                             final monthly = planMonthlyValue.toString();
                             final limitInvoices =
                                 (plan['limiteFacturasMensual'] ?? 0).toString();
-                            final maxComp =
-                                (plan['maximoEmpresas'] ?? 0).toString();
+                            final maxComp = (plan['maximoEmpresas'] ?? 0)
+                                .toString();
                             final normalizedPlanName = planName.toUpperCase();
                             final normalizedPlanCode = planCode.toUpperCase();
                             final normalizedCurrentPlanId =
                                 currentPlanId.isNotEmpty ? currentPlanId : '';
-                            final isCurrent = normalizedPlanName ==
+                            final isCurrent =
+                                normalizedPlanName ==
                                     normalizedSubscriptionType ||
-                                normalizedPlanCode == normalizedSubscriptionType ||
+                                normalizedPlanCode ==
+                                    normalizedSubscriptionType ||
                                 (normalizedCurrentPlanId.isNotEmpty &&
                                     planId.isNotEmpty &&
                                     planId == normalizedCurrentPlanId);
-                            final canUpgradePlan = planMonthlyValue > currentPlanMonthly;
+                            final canUpgradePlan =
+                                planMonthlyValue > currentPlanMonthly;
                             final isProcessingThisPlan =
                                 _processingPlanId != null &&
-                                    _processingPlanId == planId &&
-                                    _isPlanFlowRunning;
+                                _processingPlanId == planId &&
+                                _isPlanFlowRunning;
 
                             return Card(
                               margin: EdgeInsets.zero,
@@ -682,7 +691,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         if (isCurrent)
                                           Chip(
                                             label: const Text('Actual'),
-                                            visualDensity: VisualDensity.compact,
+                                            visualDensity:
+                                                VisualDensity.compact,
                                           ),
                                       ],
                                     ),
@@ -697,18 +707,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                           ? FilledButton.tonal(
                                               onPressed: _isPlanFlowRunning
                                                   ? null
-                                                  : () => _upgradePlan(context, plan),
+                                                  : () => _upgradePlan(
+                                                      context,
+                                                      plan,
+                                                    ),
                                               child: isProcessingThisPlan
                                                   ? Row(
-                                                      mainAxisSize: MainAxisSize.min,
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
                                                       children: const [
                                                         SizedBox(
                                                           width: 16,
                                                           height: 16,
-                                                          child: CircularProgressIndicator(
-                                                            strokeWidth: 2,
-                                                            color: Colors.white,
-                                                          ),
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                                strokeWidth: 2,
+                                                                color: Colors
+                                                                    .white,
+                                                              ),
                                                         ),
                                                         SizedBox(width: 8),
                                                         Text('Procesando...'),
@@ -776,9 +792,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final monthly = (plan['precioMensual'] as num?)?.toDouble() ?? 0;
 
     if (planId.isEmpty || planName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Plan invalido')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Plan invalido')));
       return;
     }
 
@@ -809,8 +825,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
 
       final payload = response.data;
-      final data =
-          (payload is Map && payload['data'] is Map)
+      final data = (payload is Map && payload['data'] is Map)
           ? (payload['data'] as Map).map((k, v) => MapEntry(k.toString(), v))
           : <String, dynamic>{};
 
@@ -836,7 +851,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           throw Exception('No se pudo abrir el navegador');
         }
 
-        final token = uri.queryParameters['token'] ?? uri.queryParameters['orderId'];
+        final token =
+            uri.queryParameters['token'] ?? uri.queryParameters['orderId'];
         if (token != null && token.isNotEmpty) {
           _pendingPayPalOrderId = token;
         }
@@ -871,9 +887,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           : 'No se pudo actualizar el plan';
       if (!context.mounted) return;
       _updateSubscriptionFlow(PaymentFlowStage.error, message);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
       setState(() {
         _processingPlanId = null;
         _pendingPlanMonthly = null;
@@ -882,9 +898,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!context.mounted) return;
       const message = 'No se pudo abrir el navegador';
       _updateSubscriptionFlow(PaymentFlowStage.error, message);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text(message)));
       setState(() {
         _processingPlanId = null;
         _pendingPlanMonthly = null;
@@ -968,10 +984,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
       if (!mounted) return;
       setState(() {
-        _subscriptionFlowStage =
-            isActive ? PaymentFlowStage.success : PaymentFlowStage.error;
-        _subscriptionFlowMessage =
-            isActive ? 'Pago confirmado' : 'No se pudo activar el plan';
+        _subscriptionFlowStage = isActive
+            ? PaymentFlowStage.success
+            : PaymentFlowStage.error;
+        _subscriptionFlowMessage = isActive
+            ? 'Pago confirmado'
+            : 'No se pudo activar el plan';
         _processingPlanId = null;
         _pendingPlanMonthly = null;
       });
@@ -1082,8 +1100,8 @@ class _PaymentProcessingDialogState extends State<_PaymentProcessingDialog>
                   color: isSuccess
                       ? const Color(0xFF2E7D32)
                       : isError
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.onSurface,
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.onSurface,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -1118,7 +1136,9 @@ class _PaymentProcessingDialogState extends State<_PaymentProcessingDialog>
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.errorContainer.withValues(alpha: 0.4),
+                    color: theme.colorScheme.errorContainer.withValues(
+                      alpha: 0.4,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -1250,16 +1270,27 @@ class _PaymentProcessingDialogState extends State<_PaymentProcessingDialog>
         icon = SizedBox(
           width: 20,
           height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2.5, color: activeColor),
+          child: CircularProgressIndicator(
+            strokeWidth: 2.5,
+            color: activeColor,
+          ),
         );
         textColor = theme.colorScheme.onSurface;
         fontWeight = FontWeight.w600;
       case _StepStatus.done:
-        icon = const Icon(Icons.check_circle_rounded, color: doneColor, size: 20);
+        icon = const Icon(
+          Icons.check_circle_rounded,
+          color: doneColor,
+          size: 20,
+        );
         textColor = theme.colorScheme.onSurfaceVariant;
         fontWeight = FontWeight.normal;
       case _StepStatus.pending:
-        icon = Icon(Icons.radio_button_unchecked, color: pendingColor, size: 20);
+        icon = Icon(
+          Icons.radio_button_unchecked,
+          color: pendingColor,
+          size: 20,
+        );
         textColor = pendingColor;
         fontWeight = FontWeight.normal;
     }
@@ -1295,8 +1326,18 @@ class _PaymentProcessingDialogState extends State<_PaymentProcessingDialog>
       try {
         final date = DateTime.parse(periodEnd);
         const months = [
-          'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-          'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+          'ene',
+          'feb',
+          'mar',
+          'abr',
+          'may',
+          'jun',
+          'jul',
+          'ago',
+          'sep',
+          'oct',
+          'nov',
+          'dic',
         ];
         formattedDate = '${date.day} ${months[date.month - 1]} ${date.year}';
       } catch (_) {
@@ -1339,7 +1380,10 @@ class _PaymentProcessingDialogState extends State<_PaymentProcessingDialog>
               ),
               if (amountCharged != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF2E7D32),
                     borderRadius: BorderRadius.circular(20),
@@ -1513,7 +1557,7 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
         setState(() => _uploading = false);
         final msg = (e.response?.data is Map)
             ? (e.response!.data['message']?.toString() ??
-                'Error al subir el certificado')
+                  'Error al subir el certificado')
             : 'Error al subir el certificado';
         _showSnack(msg);
       }
@@ -1529,8 +1573,7 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor:
-            isError ? Colors.red.shade700 : Colors.green.shade700,
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade700,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -1553,8 +1596,18 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
 
   String _formatFecha(DateTime d) {
     const meses = [
-      'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-      'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+      'ene',
+      'feb',
+      'mar',
+      'abr',
+      'may',
+      'jun',
+      'jul',
+      'ago',
+      'sep',
+      'oct',
+      'nov',
+      'dic',
     ];
     return '${d.day.toString().padLeft(2, '0')} ${meses[d.month - 1]} ${d.year}';
   }
@@ -1563,14 +1616,18 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
     if (!_tieneCert) {
       return Row(
         children: [
-          Icon(Icons.warning_amber_outlined,
-              color: Colors.orange.shade700, size: 22),
+          Icon(
+            Icons.warning_amber_outlined,
+            color: Colors.orange.shade700,
+            size: 22,
+          ),
           const SizedBox(width: 10),
           Text(
             'Sin certificado',
             style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Colors.orange.shade700),
+              fontWeight: FontWeight.w600,
+              color: Colors.orange.shade700,
+            ),
           ),
         ],
       );
@@ -1581,8 +1638,8 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
     final iconColor = expired
         ? Colors.red.shade700
         : porVencer
-            ? Colors.amber.shade800
-            : Colors.green.shade700;
+        ? Colors.amber.shade800
+        : Colors.green.shade700;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1591,8 +1648,8 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
           expired
               ? Icons.cancel_outlined
               : porVencer
-                  ? Icons.warning_amber_outlined
-                  : Icons.check_circle_outline,
+              ? Icons.warning_amber_outlined
+              : Icons.check_circle_outline,
           color: iconColor,
           size: 22,
         ),
@@ -1605,16 +1662,16 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
                 expired
                     ? 'Certificado vencido'
                     : porVencer
-                        ? 'Certificado por vencer'
-                        : 'Certificado activo',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, color: iconColor),
+                    ? 'Certificado por vencer'
+                    : 'Certificado activo',
+                style: TextStyle(fontWeight: FontWeight.w600, color: iconColor),
               ),
               const SizedBox(height: 2),
               Text(
                 _certificadoActual!,
-                style: theme.textTheme.bodySmall
-                    ?.copyWith(color: iconColor.withValues(alpha: 0.85)),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: iconColor.withValues(alpha: 0.85),
+                ),
               ),
               if (_vencimiento != null) ...[
                 const SizedBox(height: 4),
@@ -1648,7 +1705,9 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
         left: 24,
         right: 24,
         top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom +
+            MediaQuery.of(context).padding.bottom +
+            12,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1681,8 +1740,9 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
               const SizedBox(width: 12),
               Text(
                 'Firma Digital',
-                style: theme.textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -1696,23 +1756,23 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
               color: _loadingTenant
                   ? theme.colorScheme.surfaceContainerLow
                   : !_tieneCert
-                      ? Colors.orange.shade50
-                      : _certVigente == false
-                          ? Colors.red.shade50
-                          : _certPorVencer
-                              ? Colors.amber.shade50
-                              : Colors.green.shade50,
+                  ? Colors.orange.shade50
+                  : _certVigente == false
+                  ? Colors.red.shade50
+                  : _certPorVencer
+                  ? Colors.amber.shade50
+                  : Colors.green.shade50,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: _loadingTenant
                     ? theme.colorScheme.outlineVariant
                     : !_tieneCert
-                        ? Colors.orange.shade200
-                        : _certVigente == false
-                            ? Colors.red.shade200
-                            : _certPorVencer
-                                ? Colors.amber.shade300
-                                : Colors.green.shade200,
+                    ? Colors.orange.shade200
+                    : _certVigente == false
+                    ? Colors.red.shade200
+                    : _certPorVencer
+                    ? Colors.amber.shade300
+                    : Colors.green.shade200,
               ),
             ),
             child: _loadingTenant
@@ -1729,12 +1789,13 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
                   )
                 : _buildCertStatus(theme),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           Text(
             _tieneCert ? 'Reemplazar certificado' : 'Subir certificado',
-            style: theme.textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
           if (_tieneCert)
             Padding(
@@ -1783,21 +1844,19 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
                 icon: Icon(
                   _claveVisible ? Icons.visibility_off : Icons.visibility,
                 ),
-                onPressed: () =>
-                    setState(() => _claveVisible = !_claveVisible),
+                onPressed: () => setState(() => _claveVisible = !_claveVisible),
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
 
           // ── Botón subir ────────────────────────────────────────────────────
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed:
-                  (_uploading || _archivoBytes == null)
-                      ? null
-                      : _subirCertificado,
+              onPressed: (_uploading || _archivoBytes == null)
+                  ? null
+                  : _subirCertificado,
               icon: _uploading
                   ? const SizedBox(
                       width: 18,
@@ -1812,8 +1871,8 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
                 _uploading
                     ? 'Subiendo...'
                     : _tieneCert
-                        ? 'Reemplazar certificado'
-                        : 'Subir certificado',
+                    ? 'Reemplazar certificado'
+                    : 'Subir certificado',
               ),
             ),
           ),
