@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:app_links/app_links.dart';
 import '../bloc/auth_bloc.dart';
 import '../../domain/entities/usuario.dart';
 import '../../../../core/network/dio_client.dart';
@@ -55,9 +57,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   PaymentFlowStage _subscriptionFlowStage = PaymentFlowStage.idle;
   String _subscriptionFlowMessage = '';
   bool _awaitingSubscriptionCheckout = false;
+  bool _isVerifyingSubscription = false;
   String? _pendingPayPalOrderId;
+  String? _pendingPayphoneTransactionId;
+  String? _pendingPayphoneClientTransactionId;
+  String _pendingPaymentGateway = 'PAYPAL';
   String? _processingPlanId;
   double? _pendingPlanMonthly;
+  late final AppLinks _appLinks;
+  StreamSubscription<Uri>? _deepLinkSubscription;
   Future<_SubscriptionViewData>? _subscriptionFuture;
   late final ValueNotifier<_PaymentDialogData> _paymentNotifier;
 
@@ -65,6 +73,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _appLinks = AppLinks();
+    _deepLinkSubscription = _appLinks.uriLinkStream.listen(
+      _handleIncomingUri,
+      onError: (_) {},
+    );
     _paymentNotifier = ValueNotifier(
       const _PaymentDialogData(
         stage: PaymentFlowStage.idle,
@@ -77,6 +90,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _deepLinkSubscription?.cancel();
     _paymentNotifier.dispose();
     super.dispose();
   }
@@ -86,6 +100,47 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed && _awaitingSubscriptionCheckout) {
       _verifySubscriptionAfterCheckout();
+    }
+  }
+
+  void _handleIncomingUri(Uri uri) {
+    if (uri.scheme != 'com.apollos.facturador') return;
+
+    if (uri.host == 'subscription-cancel') {
+      _awaitingSubscriptionCheckout = false;
+      _pendingPayPalOrderId = null;
+      _pendingPayphoneTransactionId = null;
+      _pendingPayphoneClientTransactionId = null;
+      _pendingPaymentGateway = 'PAYPAL';
+      if (!mounted) return;
+      _updateSubscriptionFlow(
+        PaymentFlowStage.error,
+        'Pago cancelado por el usuario',
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Pago cancelado.')));
+      return;
+    }
+
+    if (uri.host == 'subscription-return') {
+      final query = uri.queryParameters;
+      final payPalToken = query['token'] ?? query['orderId'];
+      if (payPalToken != null && payPalToken.isNotEmpty) {
+        _pendingPayPalOrderId = payPalToken;
+      }
+
+      final payphoneId = query['id'];
+      final payphoneClientTx = query['clientTransactionId'];
+      if ((payphoneId ?? '').isNotEmpty &&
+          (payphoneClientTx ?? '').isNotEmpty) {
+        _pendingPayphoneTransactionId = payphoneId;
+        _pendingPayphoneClientTransactionId = payphoneClientTx;
+      }
+
+      if (_awaitingSubscriptionCheckout) {
+        _verifySubscriptionAfterCheckout();
+      }
     }
   }
 
@@ -707,10 +762,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                           ? FilledButton.tonal(
                                               onPressed: _isPlanFlowRunning
                                                   ? null
-                                                  : () => _upgradePlan(
-                                                      context,
-                                                      plan,
-                                                    ),
+                                                  : () =>
+                                                        _selectGatewayAndUpgrade(
+                                                          context,
+                                                          plan,
+                                                        ),
                                               child: isProcessingThisPlan
                                                   ? Row(
                                                       mainAxisSize:
@@ -783,9 +839,51 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _selectGatewayAndUpgrade(
+    BuildContext context,
+    Map<String, dynamic> plan,
+  ) async {
+    final selectedGateway = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            const Text(
+              'Selecciona método de pago',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: const Text('PayPal'),
+              subtitle: const Text('Pago con cuenta PayPal o tarjeta'),
+              onTap: () => Navigator.pop(sheetContext, 'PAYPAL'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.phone_android_outlined),
+              title: const Text('Payphone'),
+              subtitle: const Text('Pago con Payphone'),
+              onTap: () => Navigator.pop(sheetContext, 'PAYPHONE'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (!context.mounted || selectedGateway == null) return;
+    await _upgradePlan(context, plan, selectedGateway);
+  }
+
   Future<void> _upgradePlan(
     BuildContext context,
     Map<String, dynamic> plan,
+    String selectedGateway,
   ) async {
     final planId = (plan['id'] ?? '').toString();
     final planName = (plan['nombre'] ?? '').toString();
@@ -801,6 +899,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     setState(() {
       _processingPlanId = planId;
       _pendingPlanMonthly = monthly;
+      _pendingPaymentGateway = selectedGateway;
+      _pendingPayPalOrderId = null;
+      _pendingPayphoneTransactionId = null;
+      _pendingPayphoneClientTransactionId = null;
     });
     _updateSubscriptionFlow(
       PaymentFlowStage.creating,
@@ -816,11 +918,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           'amount': monthly,
           'currency': 'USD',
           'description': 'Suscripcion $planName',
-          'returnUrl': 'com.apollos.facturador://subscription-return',
-          'cancelUrl': 'com.apollos.facturador://subscription-cancel',
+          'returnUrl': selectedGateway == 'PAYPHONE'
+              ? 'http://192.168.0.106:5117/api/subscriptions/payphone-return'
+              : 'com.apollos.facturador://subscription-return',
+          'cancelUrl': selectedGateway == 'PAYPHONE'
+              ? 'http://192.168.0.106:5117/api/subscriptions/payphone-cancel'
+              : 'com.apollos.facturador://subscription-cancel',
           'customerEmail': widget.usuario.email,
           'customerName': widget.usuario.nombre,
           'billingPeriod': 'MENSUAL',
+          'paymentGateway': selectedGateway,
         },
       );
 
@@ -835,7 +942,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (approvalUrl.isNotEmpty) {
         _updateSubscriptionFlow(
           PaymentFlowStage.awaitingApproval,
-          'Preparando PayPal...',
+          selectedGateway == 'PAYPHONE'
+              ? 'Preparando Payphone...'
+              : 'Preparando PayPal...',
         );
         final uri = Uri.tryParse(approvalUrl);
         if (uri == null) {
@@ -851,22 +960,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           throw Exception('No se pudo abrir el navegador');
         }
 
-        final token =
-            uri.queryParameters['token'] ?? uri.queryParameters['orderId'];
-        if (token != null && token.isNotEmpty) {
-          _pendingPayPalOrderId = token;
+        if (selectedGateway == 'PAYPAL') {
+          final token =
+              uri.queryParameters['token'] ?? uri.queryParameters['orderId'];
+          if (token != null && token.isNotEmpty) {
+            _pendingPayPalOrderId = token;
+          }
         }
 
         _awaitingSubscriptionCheckout = true;
         _updateSubscriptionFlow(
           PaymentFlowStage.awaitingApproval,
-          'Abriendo PayPal...',
+          selectedGateway == 'PAYPHONE'
+              ? 'Abriendo Payphone...'
+              : 'Abriendo PayPal...',
         );
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'Abriendo PayPal. Finaliza el pago y vuelve a la aplicación.',
+              selectedGateway == 'PAYPHONE'
+                  ? 'Abriendo Payphone. Finaliza el pago y vuelve a la aplicación.'
+                  : 'Abriendo PayPal. Finaliza el pago y vuelve a la aplicación.',
             ),
           ),
         );
@@ -933,13 +1048,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _subscriptionFlowStage == PaymentFlowStage.confirming;
 
   Future<void> _verifySubscriptionAfterCheckout() async {
-    if (!_awaitingSubscriptionCheckout) return;
+    if (!_awaitingSubscriptionCheckout || _isVerifyingSubscription) return;
+
+    final gateway = _pendingPaymentGateway.toUpperCase();
+    if (gateway == 'PAYPHONE' &&
+        ((_pendingPayphoneTransactionId ?? '').isEmpty ||
+            (_pendingPayphoneClientTransactionId ?? '').isEmpty)) {
+      // Esperar deep link de retorno con id y clientTransactionId.
+      return;
+    }
+
+    _isVerifyingSubscription = true;
     _awaitingSubscriptionCheckout = false;
 
-    _paymentNotifier.value = const _PaymentDialogData(
+    _paymentNotifier.value = _PaymentDialogData(
       stage: PaymentFlowStage.confirming,
       step: 0,
-      message: 'Verificando tu pago con PayPal...',
+      message: gateway == 'PAYPHONE'
+          ? 'Verificando tu pago con Payphone...'
+          : 'Verificando tu pago con PayPal...',
     );
 
     if (!mounted) return;
@@ -951,7 +1078,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
 
     try {
-      if ((_pendingPayPalOrderId ?? '').isNotEmpty) {
+      if (gateway == 'PAYPHONE') {
+        final transactionId = int.tryParse(_pendingPayphoneTransactionId ?? '');
+        final clientTransactionId = _pendingPayphoneClientTransactionId ?? '';
+        if (transactionId == null || clientTransactionId.isEmpty) {
+          throw Exception('Datos de confirmación Payphone incompletos');
+        }
+        await getIt<DioClient>().post(
+          '/Subscriptions/confirm-payphone',
+          data: {
+            'transactionId': transactionId,
+            'clientTransactionId': clientTransactionId,
+          },
+        );
+      } else if ((_pendingPayPalOrderId ?? '').isNotEmpty) {
         await getIt<DioClient>().post(
           '/Subscriptions/confirm-paypal',
           data: {'orderId': _pendingPayPalOrderId},
@@ -1008,6 +1148,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
     } finally {
       _pendingPayPalOrderId = null;
+      _pendingPayphoneTransactionId = null;
+      _pendingPayphoneClientTransactionId = null;
+      _pendingPaymentGateway = 'PAYPAL';
+      _isVerifyingSubscription = false;
     }
   }
 }
@@ -1236,7 +1380,7 @@ class _PaymentProcessingDialogState extends State<_PaymentProcessingDialog>
 
   Widget _buildSteps(ThemeData theme, int currentStep) {
     final steps = [
-      (label: 'Verificando pago con PayPal', step: 0),
+      (label: 'Verificando pago', step: 0),
       (label: 'Activando tu suscripción', step: 1),
     ];
 
@@ -1705,7 +1849,8 @@ class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
         left: 24,
         right: 24,
         top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom +
+        bottom:
+            MediaQuery.of(context).viewInsets.bottom +
             MediaQuery.of(context).padding.bottom +
             12,
       ),
