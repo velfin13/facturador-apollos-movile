@@ -30,9 +30,9 @@ class _NegocioSetupPageState extends State<NegocioSetupPage> {
   final _nombreComercialCtrl = TextEditingController();
   final _telefonoCtrl = TextEditingController();
   final _direccionCtrl = TextEditingController();
-  final _establecimientoCtrl = TextEditingController(text: 'Matriz');
-  final _codigoEstabCtrl = TextEditingController(text: '001');
-  final _puntoEmisionCtrl = TextEditingController(text: '001');
+  final _establecimientoCtrl = TextEditingController();
+  final _codigoEstabCtrl = TextEditingController();
+  final _puntoEmisionCtrl = TextEditingController();
 
   bool _isSaving = false;
   String? _error;
@@ -118,6 +118,7 @@ class _NegocioSetupPageState extends State<NegocioSetupPage> {
                 _buildField(
                   controller: _establecimientoCtrl,
                   label: 'Nombre establecimiento',
+                  hintText: 'Ej: Matriz, Sucursal Norte',
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'Campo requerido'
                       : null,
@@ -128,6 +129,7 @@ class _NegocioSetupPageState extends State<NegocioSetupPage> {
                       child: _buildField(
                         controller: _codigoEstabCtrl,
                         label: 'Cod. Est.',
+                        hintText: 'Ej: 001',
                         keyboardType: TextInputType.number,
                         validator: _validateCodigo3,
                       ),
@@ -137,11 +139,21 @@ class _NegocioSetupPageState extends State<NegocioSetupPage> {
                       child: _buildField(
                         controller: _puntoEmisionCtrl,
                         label: 'Punto Emisión',
+                        hintText: 'Ej: 001',
                         keyboardType: TextInputType.number,
                         validator: _validateCodigo3,
                       ),
                     ),
                   ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'Estos codigos deben coincidir con los registrados en el SRI, de lo contrario las facturas no seran validas.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: 8),
@@ -182,6 +194,7 @@ class _NegocioSetupPageState extends State<NegocioSetupPage> {
     required String label,
     String? Function(String?)? validator,
     TextInputType? keyboardType,
+    String? hintText,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -191,6 +204,7 @@ class _NegocioSetupPageState extends State<NegocioSetupPage> {
         keyboardType: keyboardType,
         decoration: InputDecoration(
           labelText: label,
+          hintText: hintText,
           border: const OutlineInputBorder(),
         ),
       ),

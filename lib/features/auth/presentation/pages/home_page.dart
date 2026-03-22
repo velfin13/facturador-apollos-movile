@@ -392,7 +392,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => const _FirmaDigitalSheet(),
+      builder: (_) => const FirmaDigitalSheet(),
     );
   }
 
@@ -1591,14 +1591,14 @@ class _PaymentProcessingDialogState extends State<_PaymentProcessingDialog>
 
 // ─── Firma Digital Sheet ──────────────────────────────────────────────────────
 
-class _FirmaDigitalSheet extends StatefulWidget {
-  const _FirmaDigitalSheet();
+class FirmaDigitalSheet extends StatefulWidget {
+  const FirmaDigitalSheet({super.key});
 
   @override
   State<_FirmaDigitalSheet> createState() => _FirmaDigitalSheetState();
 }
 
-class _FirmaDigitalSheetState extends State<_FirmaDigitalSheet> {
+class _FirmaDigitalSheetState extends State<FirmaDigitalSheet> {
   String? _archivoNombre;
   Uint8List? _archivoBytes;
   final _claveController = TextEditingController();

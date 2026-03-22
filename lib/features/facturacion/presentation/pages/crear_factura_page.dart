@@ -8,6 +8,7 @@ import '../../../clientes/presentation/bloc/cliente_bloc.dart';
 import '../../../productos/presentation/bloc/producto_bloc.dart';
 import '../../domain/entities/factura.dart';
 import '../bloc/factura_bloc.dart';
+import '../../../auth/presentation/pages/home_page.dart';
 import '../../../../core/network/dio_client.dart';
 import '../../../../core/network/periodo_manager.dart';
 import '../../../../injection/injection_container.dart';
@@ -256,13 +257,28 @@ class _CrearFacturaPageState extends State<CrearFacturaPage> {
         ),
         title: const Text('Firma digital requerida'),
         content: const Text(
-          'Para emitir facturas necesitas subir tu certificado de firma digital (.p12).\n\n'
-          'Ve a tu perfil → Firma digital y sube tu certificado.',
+          'Para emitir facturas necesitas subir tu certificado de firma digital (.p12).',
         ),
         actions: [
-          FilledButton(
+          TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Entendido'),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx); // close dialog
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                useSafeArea: true,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                builder: (_) => const FirmaDigitalSheet(),
+              );
+            },
+            icon: const Icon(Icons.upload_file, size: 18),
+            label: const Text('Subir Firma'),
           ),
         ],
       ),
@@ -1757,101 +1773,132 @@ class _AgregarItemSheetState extends State<_AgregarItemSheet> {
               ),
             ),
 
-            // Bottom bar: qty / price / confirm
+            // Bottom bar: qty with +/- / price / confirm
             Container(
               padding: EdgeInsets.fromLTRB(
-                  16, 12, 16, 16 + mediaQuery.padding.bottom),
+                  16, 12, 16, 12 + mediaQuery.padding.bottom),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
                 border: Border(
                   top: BorderSide(color: theme.colorScheme.outlineVariant),
                 ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Cantidad
-                  SizedBox(
-                    width: 80,
-                    child: TextField(
-                      controller: _cantidadController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                      decoration: InputDecoration(
-                        labelText: 'Cant.',
-                        filled: true,
-                        fillColor: theme.colorScheme.surfaceContainerLow,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.outlineVariant,
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.outlineVariant,
-                          ),
-                        ),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 10,
+                  // Cantidad con +/-
+                  Row(
+                    children: [
+                      Text(
+                        'Cantidad',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ),
+                      const Spacer(),
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove, size: 20),
+                              onPressed: () {
+                                final current =
+                                    int.tryParse(_cantidadController.text) ?? 1;
+                                if (current > 1) {
+                                  _cantidadController.text =
+                                      (current - 1).toString();
+                                }
+                              },
+                              constraints: const BoxConstraints(
+                                minWidth: 40,
+                                minHeight: 40,
+                              ),
+                              padding: EdgeInsets.zero,
+                            ),
+                            SizedBox(
+                              width: 50,
+                              child: TextField(
+                                controller: _cantidadController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                                decoration: const InputDecoration(
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding:
+                                      EdgeInsets.symmetric(vertical: 8),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.add, size: 20),
+                              onPressed: () {
+                                final current =
+                                    int.tryParse(_cantidadController.text) ?? 0;
+                                _cantidadController.text =
+                                    (current + 1).toString();
+                              },
+                              constraints: const BoxConstraints(
+                                minWidth: 40,
+                                minHeight: 40,
+                              ),
+                              padding: EdgeInsets.zero,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-
-                  // Precio
-                  SizedBox(
-                    width: 110,
-                    child: TextField(
-                      controller: _precioController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Precio',
-                        prefixText: '\$ ',
-                        filled: true,
-                        fillColor: theme.colorScheme.surfaceContainerLow,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.outlineVariant,
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: theme.colorScheme.outlineVariant,
-                          ),
-                        ),
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 10,
+                  const SizedBox(height: 12),
+                  // Precio (solo lectura)
+                  Row(
+                    children: [
+                      Text(
+                        'Precio',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ),
+                      const Spacer(),
+                      Text(
+                        '\$ ${_precioController.text}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-
-                  // Confirm button
-                  Expanded(
+                  const SizedBox(height: 16),
+                  // Confirm button full width
+                  SizedBox(
+                    width: double.infinity,
                     child: FilledButton(
                       onPressed: _confirmar,
                       style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: Text(
                         isEdit ? 'Guardar' : 'Agregar',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
