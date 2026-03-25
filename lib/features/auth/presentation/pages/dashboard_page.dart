@@ -1,22 +1,53 @@
 import 'package:flutter/material.dart';
 import '../../domain/entities/usuario.dart';
+import '../../../../core/network/dio_client.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../injection/injection_container.dart';
 import '../../../clientes/presentation/bloc/cliente_bloc.dart';
 import '../../../clientes/presentation/pages/crear_cliente_page.dart';
 import '../../../productos/presentation/pages/crear_producto_page.dart';
 import '../../../facturacion/presentation/pages/crear_factura_page.dart';
+import '../../../facturacion/presentation/pages/estadisticas_page.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   final Usuario usuario;
+  final VoidCallback? onUpgrade;
 
-  const DashboardPage({super.key, required this.usuario});
+  const DashboardPage({super.key, required this.usuario, this.onUpgrade});
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  Map<String, dynamic>? _uso;
+
+  Usuario get usuario => widget.usuario;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarUso();
+  }
+
+  Future<void> _cargarUso() async {
+    try {
+      final response = await getIt<DioClient>().get('/Ventas/uso');
+      if (response.data is Map && response.data['data'] != null) {
+        if (mounted) setState(() => _uso = response.data['data'] as Map<String, dynamic>);
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return SingleChildScrollView(
+    return RefreshIndicator(
+      onRefresh: _cargarUso,
+      child: SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -29,7 +60,7 @@ class DashboardPage extends StatelessWidget {
               gradient: LinearGradient(
                 colors: [
                   theme.colorScheme.primary,
-                  theme.colorScheme.primary.withOpacity(0.8),
+                  theme.colorScheme.primary.withValues(alpha: 0.8),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -42,7 +73,7 @@ class DashboardPage extends StatelessWidget {
                 Text(
                   _getGreeting(),
                   style: TextStyle(
-                    color: theme.colorScheme.onPrimary.withOpacity(0.8),
+                    color: theme.colorScheme.onPrimary.withValues(alpha: 0.8),
                     fontSize: 14,
                   ),
                 ),
@@ -57,12 +88,9 @@ class DashboardPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.onPrimary.withOpacity(0.2),
+                    color: theme.colorScheme.onPrimary.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
@@ -78,7 +106,12 @@ class DashboardPage extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          // Tarjeta de plan y uso
+          if (_uso != null) _PlanUsageCard(uso: _uso!, onUpgrade: widget.onUpgrade),
+
+          const SizedBox(height: 20),
 
           // Acciones rápidas
           Text(
@@ -89,7 +122,6 @@ class DashboardPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // Grid de acciones según rol
           GridView.count(
             crossAxisCount: 2,
             shrinkWrap: true,
@@ -102,10 +134,10 @@ class DashboardPage extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // Info del sistema
           _buildInfoCard(context),
         ],
       ),
+    ),
     );
   }
 
@@ -119,7 +151,6 @@ class DashboardPage extends StatelessWidget {
   List<Widget> _buildQuickActions(BuildContext context) {
     final actions = <Widget>[];
 
-    // Nueva factura - admin y cliente
     if (usuario.esAdmin || usuario.esCliente) {
       actions.add(
         _QuickActionCard(
@@ -134,7 +165,6 @@ class DashboardPage extends StatelessWidget {
       );
     }
 
-    // Nuevo cliente - admin y cliente
     if (usuario.esAdmin || usuario.esCliente) {
       actions.add(
         _QuickActionCard(
@@ -154,7 +184,6 @@ class DashboardPage extends StatelessWidget {
       );
     }
 
-    // Nuevo producto - admin y cliente
     if (usuario.esAdmin || usuario.esCliente) {
       actions.add(
         _QuickActionCard(
@@ -169,21 +198,17 @@ class DashboardPage extends StatelessWidget {
       );
     }
 
-    // Ver reportes - solo admin (por ahora)
-    if (usuario.esAdmin) {
-      actions.add(
-        _QuickActionCard(
-          icon: Icons.bar_chart,
-          label: 'Reportes',
-          color: Colors.blue,
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Reportes proximamente')),
-            );
-          },
+    actions.add(
+      _QuickActionCard(
+        icon: Icons.bar_chart,
+        label: 'Estadísticas',
+        color: Colors.blue,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const EstadisticasPage()),
         ),
-      );
-    }
+      ),
+    );
 
     return actions;
   }
@@ -195,7 +220,7 @@ class DashboardPage extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
@@ -204,26 +229,18 @@ class DashboardPage extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.info_outline,
-                size: 20,
-                color: theme.colorScheme.primary,
-              ),
+              Icon(Icons.info_outline, size: 20, color: theme.colorScheme.primary),
               const SizedBox(width: 8),
               Text(
                 'Sistema de Facturacion',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             _getRoleDescription(),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -241,6 +258,201 @@ class DashboardPage extends StatelessWidget {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tarjeta de plan y uso
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PlanUsageCard extends StatelessWidget {
+  final Map<String, dynamic> uso;
+  final VoidCallback? onUpgrade;
+
+  const _PlanUsageCard({required this.uso, this.onUpgrade});
+
+  @override
+  Widget build(BuildContext context) {
+    final plan = uso['subscriptionType']?.toString() ?? 'Plan';
+    final esGratis = uso['esGratis'] == true;
+
+    final fvUsadas = (uso['currentInvoiceCount'] as num?)?.toInt() ?? 0;
+    final fvLimite = (uso['invoiceLimit'] as num?)?.toInt() ?? 10;
+    final ncUsadas = (uso['currentNotaCreditoCount'] as num?)?.toInt() ?? 0;
+    final ncLimite = (uso['notaCreditoLimit'] as num?)?.toInt() ?? 10;
+
+    final fvPorcentaje = fvLimite == -1 ? 0.0 : (fvUsadas / fvLimite).clamp(0.0, 1.0);
+    final ncPorcentaje = ncLimite == -1 ? 0.0 : (ncUsadas / ncLimite).clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Encabezado del plan
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.brand.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.workspace_premium, size: 20, color: AppTheme.brand),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      plan,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    Text(
+                      esGratis ? '10 facturas + 10 NC (uso único)' : 'Se renueva mensualmente',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    ),
+                  ],
+                ),
+              ),
+              if (esGratis)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.orange.shade200),
+                  ),
+                  child: Text(
+                    'Gratis',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade700),
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Barras de uso
+          _UsageBar(
+            label: 'Facturas',
+            icon: Icons.receipt_long,
+            used: fvUsadas,
+            limit: fvLimite,
+            percentage: fvPorcentaje,
+            color: AppTheme.brand,
+          ),
+
+          const SizedBox(height: 12),
+
+          _UsageBar(
+            label: 'Notas de Crédito',
+            icon: Icons.assignment_return_outlined,
+            used: ncUsadas,
+            limit: ncLimite,
+            percentage: ncPorcentaje,
+            color: Colors.orange.shade700,
+          ),
+
+          const SizedBox(height: 14),
+
+          // Botón actualizar plan
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onUpgrade,
+              icon: const Icon(Icons.rocket_launch_outlined, size: 16),
+              label: Text(esGratis ? 'Actualizar plan' : 'Cambiar plan'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.brand,
+                side: BorderSide(color: AppTheme.brand.withValues(alpha: 0.3)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UsageBar extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final int used;
+  final int limit;
+  final double percentage;
+  final Color color;
+
+  const _UsageBar({
+    required this.label,
+    required this.icon,
+    required this.used,
+    required this.limit,
+    required this.percentage,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final restantes = limit == -1 ? -1 : (limit - used).clamp(0, limit);
+    final esCritico = limit != -1 && restantes <= 2;
+    final barColor = esCritico ? AppTheme.danger : color;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: Colors.grey.shade500),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            const Spacer(),
+            if (limit == -1)
+              Text('Ilimitado', style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold))
+            else
+              RichText(
+                text: TextSpan(
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  children: [
+                    TextSpan(
+                      text: '$used',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: esCritico ? AppTheme.danger : color),
+                    ),
+                    TextSpan(text: ' / $limit'),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: percentage,
+            minHeight: 6,
+            backgroundColor: Colors.grey.shade200,
+            valueColor: AlwaysStoppedAnimation<Color>(barColor),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Card de acción rápida
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _QuickActionCard extends StatelessWidget {
   final IconData icon;
@@ -260,7 +472,7 @@ class _QuickActionCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: color.withOpacity(0.1),
+      color: color.withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -273,7 +485,7 @@ class _QuickActionCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: color.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 24),
@@ -284,7 +496,7 @@ class _QuickActionCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: color.withOpacity(0.9),
+                  color: color.withValues(alpha: 0.9),
                 ),
               ),
             ],

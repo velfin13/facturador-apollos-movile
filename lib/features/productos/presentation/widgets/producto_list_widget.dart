@@ -224,7 +224,13 @@ class _ProductoCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      _StockChip(stock: producto.stock),
+                      producto.esServicio
+                          ? _Tag(
+                              label: 'Servicio',
+                              bg: Colors.blue.shade50,
+                              fg: Colors.blue.shade700,
+                            )
+                          : _StockChip(stock: producto.stock),
                     ],
                   ),
                 ),

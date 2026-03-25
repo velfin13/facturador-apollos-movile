@@ -1,11 +1,11 @@
 import 'dart:developer' as dev;
 
-import 'package:flutter_appauth/flutter_appauth.dart';
+import 'package:dio/dio.dart';
 import 'package:injectable/injectable.dart';
 
 import '../../../../core/auth/jwt_utils.dart';
-import '../../../../core/auth/keycloak_config.dart';
 import '../../../../core/auth/token_storage.dart';
+import '../../../../core/network/api_config.dart';
 import '../../domain/entities/usuario.dart';
 import '../models/auth_session.dart';
 import '../models/usuario_model.dart';
@@ -79,179 +79,126 @@ abstract class AuthRemoteDataSource {
 
 @LazySingleton(as: AuthRemoteDataSource)
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
-  final FlutterAppAuth _appAuth;
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: ApiConfig.baseUrl,
+    connectTimeout: ApiConfig.connectTimeout,
+    receiveTimeout: ApiConfig.receiveTimeout,
+    headers: ApiConfig.headers,
+  ));
 
-  AuthRemoteDataSourceImpl(this._appAuth);
+  AuthRemoteDataSourceImpl();
 
   @override
-  Future<AuthSession> login(String email, String password) async {
-    // password no se usa en el flujo OIDC, se mantiene por compatibilidad de interfaz
-    final _ = password;
-    dev.log(
-      'AuthRemoteDataSource.login: iniciando authorizeAndExchangeCode',
-      name: 'auth',
-    );
-    dev.log(
-      'AuthRemoteDataSource.login: issuer=${KeycloakConfig.issuer}',
-      name: 'auth',
-    );
-    dev.log(
-      'AuthRemoteDataSource.login: redirectUri=${KeycloakConfig.redirectUri}',
-      name: 'auth',
-    );
-    dev.log(
-      'AuthRemoteDataSource.login: clientId=${KeycloakConfig.clientId}',
-      name: 'auth',
-    );
+  Future<AuthSession> login(String username, String password) async {
+    dev.log('AuthRemoteDataSource.login: POST /Auth/login con username=$username', name: 'auth');
 
-    AuthorizationTokenResponse? result;
+    if (username.isEmpty || password.isEmpty) {
+      throw Exception('Usuario y contraseña son obligatorios');
+    }
+
     try {
-      dev.log(
-        'AuthRemoteDataSource.login: ANTES de authorizeAndExchangeCode',
-        name: 'auth',
-      );
-      result = await _appAuth.authorizeAndExchangeCode(
-        AuthorizationTokenRequest(
-          KeycloakConfig.clientId,
-          KeycloakConfig.redirectUri,
-          issuer: KeycloakConfig.issuer,
-          scopes: KeycloakConfig.scopes,
-          loginHint: email.isNotEmpty ? email : null,
-          promptValues: const ['login'],
-          allowInsecureConnections: false,
-          preferEphemeralSession: false,
-        ),
-      );
-      dev.log(
-        'AuthRemoteDataSource.login: DESPUES de authorizeAndExchangeCode, result=$result',
-        name: 'auth',
-      );
-    } on Exception catch (e, stackTrace) {
-      dev.log('AuthRemoteDataSource.login: ERROR COMPLETO: $e', name: 'auth');
-      dev.log(
-        'AuthRemoteDataSource.login: stackTrace: $stackTrace',
-        name: 'auth',
+      final response = await _dio.post(
+        '/Auth/login',
+        data: {
+          'username': username,
+          'password': password,
+        },
       );
 
-      final errorStr = e.toString();
-
-      // Usuario canceló explícitamente
-      if (errorStr.contains('user_cancelled') ||
-          errorStr.contains('CANCELED') ||
-          errorStr.contains('User cancelled')) {
-        throw Exception('Login cancelado por el usuario');
+      final body = response.data;
+      if (body is! Map || body['status'] != true || body['data'] == null) {
+        final msg = body is Map ? body['message']?.toString() : null;
+        throw Exception(msg ?? 'Credenciales incorrectas');
       }
 
-      // Error de estado no almacenado
-      if (errorStr.toLowerCase().contains('no stored state') ||
-          errorStr.toLowerCase().contains('state mismatch')) {
-        throw Exception(
-          'Error de autenticación: No se pudo completar el flujo OAuth. '
-          'Por favor, intente nuevamente.',
-        );
+      final data = body['data'] as Map<String, dynamic>;
+      final accessToken = data['access_token'] as String?;
+      final refreshToken = data['refresh_token'] as String?;
+      final expiresIn = data['expires_in'] as int? ?? 300;
+
+      if (accessToken == null) {
+        throw Exception('No se recibió access_token');
       }
 
-      // Mostrar el error real para depuración
-      throw Exception('Error de autenticación: $errorStr');
+      dev.log('AuthRemoteDataSource.login: token recibido, expires_in=$expiresIn', name: 'auth');
+
+      final claims = decodeJwt(accessToken);
+      final usuario = _usuarioFromClaims(claims);
+
+      return AuthSession(
+        usuario: usuario,
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        idToken: null,
+        accessTokenExpiry: DateTime.now().add(Duration(seconds: expiresIn)),
+      );
+    } on DioException catch (e) {
+      dev.log('AuthRemoteDataSource.login: DioError ${e.response?.statusCode}', name: 'auth');
+      final body = e.response?.data;
+      final msg = body is Map ? body['message']?.toString() : null;
+
+      if (e.response?.statusCode == 401) {
+        throw Exception(msg ?? 'Usuario o contraseña incorrectos');
+      }
+      throw Exception(msg ?? 'Error de conexión al servidor');
     }
-
-    if (result == null) {
-      throw Exception('No se recibió respuesta del servidor de autenticación');
-    }
-
-    dev.log(
-      'AuthRemoteDataSource.login: recibido accessToken=${result.accessToken != null}, refreshToken=${result.refreshToken != null}, idToken=${result.idToken != null}',
-      name: 'auth',
-    );
-
-    final accessToken = result.accessToken;
-    if (accessToken == null) {
-      throw Exception('No se recibió access_token');
-    }
-
-    final claims = decodeJwt(accessToken);
-    final usuario = _usuarioFromClaims(claims);
-
-    return AuthSession(
-      usuario: usuario,
-      accessToken: accessToken,
-      refreshToken: result.refreshToken,
-      idToken: result.idToken,
-      accessTokenExpiry: result.accessTokenExpirationDateTime,
-    );
   }
 
   @override
   Future<AuthSession> refresh(String refreshToken) async {
-    dev.log(
-      'AuthRemoteDataSource.refresh: solicitando nuevo token',
-      name: 'auth',
-    );
-    final result = await _appAuth.token(
-      TokenRequest(
-        KeycloakConfig.clientId,
-        KeycloakConfig.redirectUri,
-        issuer: KeycloakConfig.issuer,
-        refreshToken: refreshToken,
-        scopes: KeycloakConfig.scopes,
-      ),
-    );
+    dev.log('AuthRemoteDataSource.refresh: POST /Auth/refresh', name: 'auth');
 
-    dev.log(
-      'AuthRemoteDataSource.refresh: recibido accessToken=${result.accessToken != null}, refreshToken=${result.refreshToken != null}, idToken=${result.idToken != null}',
-      name: 'auth',
-    );
+    try {
+      final response = await _dio.post(
+        '/Auth/refresh',
+        data: {'refreshToken': refreshToken},
+      );
 
-    final accessToken = result.accessToken;
-    if (accessToken == null) {
-      throw Exception('No se recibió access_token en refresh');
+      final body = response.data;
+      if (body is! Map || body['status'] != true || body['data'] == null) {
+        throw Exception('No se pudo renovar la sesión');
+      }
+
+      final data = body['data'] as Map<String, dynamic>;
+      final accessToken = data['access_token'] as String?;
+      final newRefreshToken = data['refresh_token'] as String?;
+      final expiresIn = data['expires_in'] as int? ?? 300;
+
+      if (accessToken == null) {
+        throw Exception('No se recibió access_token en refresh');
+      }
+
+      final claims = decodeJwt(accessToken);
+      final usuario = _usuarioFromClaims(claims);
+
+      return AuthSession(
+        usuario: usuario,
+        accessToken: accessToken,
+        refreshToken: newRefreshToken ?? refreshToken,
+        idToken: null,
+        accessTokenExpiry: DateTime.now().add(Duration(seconds: expiresIn)),
+      );
+    } on DioException catch (e) {
+      dev.log('AuthRemoteDataSource.refresh: error ${e.response?.statusCode}', name: 'auth');
+      throw Exception('Sesión expirada. Inicia sesión nuevamente.');
     }
-
-    final claims = decodeJwt(accessToken);
-    final usuario = _usuarioFromClaims(claims);
-
-    return AuthSession(
-      usuario: usuario,
-      accessToken: accessToken,
-      refreshToken: result.refreshToken ?? refreshToken,
-      idToken: result.idToken,
-      accessTokenExpiry: result.accessTokenExpirationDateTime,
-    );
   }
 
   @override
   Future<void> logout({String? idTokenHint}) async {
-    try {
-      await _appAuth.endSession(
-        EndSessionRequest(
-          idTokenHint: idTokenHint,
-          postLogoutRedirectUrl: KeycloakConfig.postLogoutRedirectUri,
-          issuer: KeycloakConfig.issuer,
-        ),
-      );
-    } catch (_) {
-      dev.log(
-        'AuthRemoteDataSource.logout: error cerrando sesión remota',
-        name: 'auth',
-      );
-      // Ignoramos errores silenciosamente; el logout local seguirá.
-    }
+    // No hay endpoint de logout en la API, solo limpiamos localmente
+    dev.log('AuthRemoteDataSource.logout: limpieza local', name: 'auth');
   }
 
   UsuarioModel _usuarioFromClaims(Map<String, dynamic> claims) {
-    dev.log('Claims completos: $claims', name: 'auth');
+    dev.log('Claims: $claims', name: 'auth');
 
     final id = claims['sub']?.toString() ?? 'desconocido';
-    final nombre = (claims['name'] ?? claims['preferred_username'] ?? 'usuario')
-        .toString();
+    final nombre = (claims['name'] ?? claims['preferred_username'] ?? 'usuario').toString();
     final email = (claims['email'] ?? '').toString();
     final rolesStrings = _extractRoles(claims);
-    dev.log('Roles extraidos: $rolesStrings', name: 'auth');
     final roles = _mapRoles(rolesStrings);
-    dev.log('Roles mapeados: $roles', name: 'auth');
 
-    // Si solo tiene un rol, asignarlo automaticamente como activo
-    // Si no tiene roles, rolActivo queda null
     final rolActivo = roles.length == 1 ? roles.first : null;
 
     return UsuarioModel(
@@ -280,8 +227,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     final resource = claims['resource_access'];
     if (resource is Map && resource.isNotEmpty) {
       final preferredClientId = claims['azp']?.toString();
-
-      // 1) Prioriza roles del cliente autorizado (azp) si existe.
       if (preferredClientId != null && preferredClientId.isNotEmpty) {
         final preferred = resource[preferredClientId];
         if (preferred is Map && preferred['roles'] is List) {
@@ -293,8 +238,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           );
         }
       }
-
-      // 2) Agrega roles de todos los clientes presentes en resource_access.
       for (final value in resource.values) {
         if (value is Map && value['roles'] is List) {
           roles.addAll(
@@ -312,20 +255,15 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   Set<UserRole> _mapRoles(List<String> roles) {
     final mappedRoles = <UserRole>{};
-
     for (final role in roles) {
       switch (role.trim().toUpperCase()) {
         case 'ADMIN':
         case 'ADMINISTRADOR':
           mappedRoles.add(UserRole.admin);
-          break;
         case 'CLIENTE':
           mappedRoles.add(UserRole.cliente);
-          break;
       }
     }
-
-    dev.log('Roles validos encontrados: $mappedRoles', name: 'auth');
     return mappedRoles;
   }
 }

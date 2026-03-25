@@ -14,4 +14,13 @@ abstract class FacturaRepository {
   Future<Either<Failure, Factura>> getFactura(String id);
   Future<Either<Failure, Factura>> createFactura(Factura factura);
   Future<Either<Failure, Unit>> deleteFactura(String id);
+  Future<Either<Failure, String>> verificarAutorizacion({
+    required int idSysFcCabVenta,
+    required int idSysPeriodo,
+  });
+  Future<Either<Failure, Factura>> createNotaCredito({
+    required int idSysFcCabVenta,
+    required int idSysPeriodo,
+    required String motivo,
+  });
 }

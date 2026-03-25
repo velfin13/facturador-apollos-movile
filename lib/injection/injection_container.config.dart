@@ -88,7 +88,7 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i865.FacturaLocalDataSourceImpl(),
     );
     gh.lazySingleton<_i489.AuthRemoteDataSource>(
-      () => _i489.AuthRemoteDataSourceImpl(gh<_i337.FlutterAppAuth>()),
+      () => _i489.AuthRemoteDataSourceImpl(),
     );
     gh.lazySingleton<_i313.TokenStorage>(
       () => _i313.TokenStorage(gh<_i558.FlutterSecureStorage>()),
@@ -204,13 +204,6 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i742.UpdateCliente>(
       () => _i742.UpdateCliente(gh<_i135.ClienteRepository>()),
     );
-    gh.factory<_i246.FacturaBloc>(
-      () => _i246.FacturaBloc(
-        getFacturas: gh<_i92.GetFacturas>(),
-        getFactura: gh<_i756.GetFactura>(),
-        createFactura: gh<_i281.CreateFactura>(),
-      ),
-    );
     gh.factory<_i829.ProductoBloc>(
       () => _i829.ProductoBloc(
         getProductos: gh<_i223.GetProductos>(),
@@ -224,6 +217,14 @@ extension GetItInjectableX on _i174.GetIt {
         getClientes: gh<_i943.GetClientes>(),
         createCliente: gh<_i799.CreateCliente>(),
         updateCliente: gh<_i742.UpdateCliente>(),
+      ),
+    );
+    gh.factory<_i246.FacturaBloc>(
+      () => _i246.FacturaBloc(
+        getFacturas: gh<_i92.GetFacturas>(),
+        getFactura: gh<_i756.GetFactura>(),
+        createFactura: gh<_i281.CreateFactura>(),
+        repository: gh<_i757.FacturaRepository>(),
       ),
     );
     return this;

@@ -75,4 +75,38 @@ class FacturaRepositoryImpl implements FacturaRepository {
       return Left(ServerFailure(e.toString()));
     }
   }
+
+  @override
+  Future<Either<Failure, String>> verificarAutorizacion({
+    required int idSysFcCabVenta,
+    required int idSysPeriodo,
+  }) async {
+    try {
+      final result = await remoteDataSource.verificarAutorizacion(
+        idSysFcCabVenta: idSysFcCabVenta,
+        idSysPeriodo: idSysPeriodo,
+      );
+      return Right(result['estado']?.toString() ?? 'PENDIENTE');
+    } catch (e) {
+      return Left(ServerFailure(e.toString()));
+    }
+  }
+
+  @override
+  Future<Either<Failure, Factura>> createNotaCredito({
+    required int idSysFcCabVenta,
+    required int idSysPeriodo,
+    required String motivo,
+  }) async {
+    try {
+      final result = await remoteDataSource.createNotaCredito(
+        idSysFcCabVenta: idSysFcCabVenta,
+        idSysPeriodo: idSysPeriodo,
+        motivo: motivo,
+      );
+      return Right(result);
+    } catch (e) {
+      return Left(ServerFailure(e.toString()));
+    }
+  }
 }

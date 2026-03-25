@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/entities/factura.dart';
 import '../bloc/factura_bloc.dart';
+import '../../../../core/network/periodo_manager.dart';
+import '../../../../injection/injection_container.dart';
 
 final _fmt = NumberFormat('#,##0.00', 'es');
 
@@ -39,7 +41,7 @@ class FacturaListWidget extends StatelessWidget {
                 Icon(Icons.receipt_long_outlined,
                     size: 56, color: Colors.grey.shade300),
                 const SizedBox(height: 12),
-                Text('No hay facturas disponibles',
+                Text('No hay documentos disponibles',
                     style: TextStyle(color: Colors.grey.shade500)),
               ],
             ),
@@ -143,11 +145,18 @@ class _FacturaCard extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: cs.primaryContainer,
+                  color: factura.tipo == 'NC'
+                      ? Colors.orange.shade50
+                      : cs.primaryContainer,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child:
-                    Icon(Icons.receipt_long, color: cs.primary, size: 20),
+                child: Icon(
+                  factura.tipo == 'NC'
+                      ? Icons.assignment_return_outlined
+                      : Icons.receipt_long,
+                  color: factura.tipo == 'NC' ? Colors.orange.shade700 : cs.primary,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -188,8 +197,7 @@ class _FacturaCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Icon(Icons.chevron_right,
-                      size: 18, color: Colors.grey.shade400),
+                  _EstadoBadge(estado: factura.estado),
                 ],
               ),
             ],
@@ -204,7 +212,7 @@ class _FacturaCard extends StatelessWidget {
 // Bottom sheet de detalle
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _DetalleSheet extends StatelessWidget {
+class _DetalleSheet extends StatefulWidget {
   final Factura factura;
   final ScrollController scrollController;
 
@@ -212,10 +220,50 @@ class _DetalleSheet extends StatelessWidget {
       {required this.factura, required this.scrollController});
 
   @override
+  State<_DetalleSheet> createState() => _DetalleSheetState();
+}
+
+class _DetalleSheetState extends State<_DetalleSheet> {
+  late String _estado;
+
+  @override
+  void initState() {
+    super.initState();
+    _estado = widget.factura.estado ?? 'PENDIENTE';
+    // Si está pendiente, verificar automáticamente
+    if (_estado != 'AUTORIZADA') {
+      final periodo = int.tryParse(widget.factura.periodo) ?? 1;
+      final id = int.tryParse(widget.factura.id) ?? 0;
+      context.read<FacturaBloc>().add(VerificarAutorizacionEvent(
+        idSysFcCabVenta: id,
+        idSysPeriodo: periodo,
+      ));
+    }
+  }
+
+  Factura get factura => widget.factura;
+  ScrollController get scrollController => widget.scrollController;
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Container(
+    return BlocListener<FacturaBloc, FacturaState>(
+      listener: (ctx, state) {
+        if (state is AutorizacionVerificada &&
+            state.idSysFcCabVenta == int.tryParse(factura.id)) {
+          setState(() => _estado = state.estado);
+          if (state.estado == 'AUTORIZADA') {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: const Text('Documento autorizado por el SRI'),
+                backgroundColor: AppTheme.success,
+              ),
+            );
+          }
+        }
+      },
+      child: Container(
       decoration: BoxDecoration(
         color: cs.surface,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -303,6 +351,13 @@ class _DetalleSheet extends StatelessWidget {
                             formasPago: (detalle ?? factura).formasPago),
                       ),
 
+                    // ── Botón Nota de Crédito ────────────────────────────
+                    if (factura.tipo == 'FV' &&
+                        (_estado == 'EMITIDA' || _estado == 'AUTORIZADA'))
+                      SliverToBoxAdapter(
+                        child: _NotaCreditoButton(factura: factura),
+                      ),
+
                     const SliverToBoxAdapter(child: SizedBox(height: 32)),
                   ],
                 );
@@ -311,6 +366,7 @@ class _DetalleSheet extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -336,9 +392,16 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            factura.numFact ?? factura.id,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  factura.numFact ?? factura.id,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+              ),
+              _EstadoBadge(estado: factura.estado),
+            ],
           ),
           const SizedBox(height: 8),
           _InfoRow(
@@ -676,6 +739,176 @@ class _TotalRow extends StatelessWidget {
               color: valueColor),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Badge de estado (AUTORIZADA = verde, PENDIENTE = naranja)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _EstadoBadge extends StatelessWidget {
+  final String? estado;
+  const _EstadoBadge({this.estado});
+
+  @override
+  Widget build(BuildContext context) {
+    final isAutorizada = estado?.toUpperCase() == 'AUTORIZADA';
+    final label = isAutorizada ? 'AUTORIZADA' : 'PENDIENTE';
+    final color = isAutorizada ? AppTheme.success : Colors.orange.shade700;
+    final bgColor = isAutorizada
+        ? const Color(0xFFE8F5E9)
+        : Colors.orange.shade50;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Botón Nota de Crédito
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NotaCreditoButton extends StatelessWidget {
+  final Factura factura;
+  const _NotaCreditoButton({required this.factura});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<FacturaBloc, FacturaState>(
+      listener: (ctx, state) {
+        if (state is NotaCreditoCreated) {
+          Navigator.of(ctx).pop();
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(
+              content: Text('Nota de crédito ${state.notaCredito.numFact} creada'),
+              backgroundColor: AppTheme.success,
+            ),
+          );
+          ctx.read<FacturaBloc>().add(GetFacturasEvent());
+        } else if (state is FacturaError) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(
+              content: Text(state.message),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+        child: BlocBuilder<FacturaBloc, FacturaState>(
+          builder: (ctx, state) {
+            final loading = state is NotaCreditoCreating;
+            return SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: loading
+                    ? null
+                    : () => _confirmarNotaCredito(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red.shade600,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.assignment_return_outlined, size: 20),
+                label: Text(
+                  loading ? 'Procesando...' : 'Emitir Nota de Crédito',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _confirmarNotaCredito(BuildContext context) {
+    final motivoController = TextEditingController(text: 'Devolución');
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Nota de Crédito'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Se anulará la factura ${factura.numFact}',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Total: \$${_fmt.format(factura.total)}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: motivoController,
+              decoration: const InputDecoration(
+                labelText: 'Motivo',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogCtx).pop();
+              final periodo = int.tryParse(
+                    getIt<PeriodoManager>().periodoActual,
+                  ) ??
+                  1;
+              context.read<FacturaBloc>().add(
+                    CreateNotaCreditoEvent(
+                      idSysFcCabVenta: int.tryParse(factura.id) ?? 0,
+                      idSysPeriodo: periodo,
+                      motivo: motivoController.text.trim().isEmpty
+                          ? 'Devolución'
+                          : motivoController.text.trim(),
+                    ),
+                  );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
     );
   }
 }

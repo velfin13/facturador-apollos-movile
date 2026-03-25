@@ -98,8 +98,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    if (state == AppLifecycleState.resumed && _awaitingSubscriptionCheckout) {
-      _verifySubscriptionAfterCheckout();
+    if (state == AppLifecycleState.resumed) {
+      _dismissPaymentLoading();
+      if (_awaitingSubscriptionCheckout) {
+        _verifySubscriptionAfterCheckout();
+      }
     }
   }
 
@@ -152,7 +155,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         label: 'Inicio',
         icon: Icons.home_outlined,
         activeIcon: Icons.home,
-        page: DashboardPage(usuario: widget.usuario),
+        page: DashboardPage(
+          usuario: widget.usuario,
+          onUpgrade: () => _showSubscriptionSheet(context),
+        ),
       ),
     );
 
@@ -345,6 +351,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   _showFirmaDigitalSheet(context);
                 },
               ),
+              ListTile(
+                leading: Icon(
+                  Icons.lightbulb_outline,
+                  color: Colors.amber.shade700,
+                ),
+                title: const Text('Sugerencias'),
+                subtitle: const Text('Enviar idea o comentario'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showSugerenciaDialog(context);
+                },
+              ),
               const Divider(),
               if (widget.usuario.tieneMultiplesRoles) ...[
                 ListTile(
@@ -381,6 +400,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
         ),
       ),
+    );
+  }
+
+  void _showSugerenciaDialog(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const _SugerenciasPage()),
     );
   }
 
@@ -877,6 +903,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
 
     if (!context.mounted || selectedGateway == null) return;
+
+    // Cerrar el bottom sheet de suscripción
+    Navigator.of(context).pop();
+
+    if (!mounted) return;
+
+    // Mostrar loading global
+    _showPaymentLoading();
+
     await _upgradePlan(context, plan, selectedGateway);
   }
 
@@ -919,10 +954,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           'currency': 'USD',
           'description': 'Suscripcion $planName',
           'returnUrl': selectedGateway == 'PAYPHONE'
-              ? 'http://192.168.0.106:5117/api/subscriptions/payphone-return'
+              ? 'http://192.168.0.107:5117/api/subscriptions/payphone-return'
               : 'com.apollos.facturador://subscription-return',
           'cancelUrl': selectedGateway == 'PAYPHONE'
-              ? 'http://192.168.0.106:5117/api/subscriptions/payphone-cancel'
+              ? 'http://192.168.0.107:5117/api/subscriptions/payphone-cancel'
               : 'com.apollos.facturador://subscription-cancel',
           'customerEmail': widget.usuario.email,
           'customerName': widget.usuario.nombre,
@@ -976,6 +1011,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               : 'Abriendo PayPal...',
         );
         if (!context.mounted) return;
+        _dismissPaymentLoading();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -987,6 +1023,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         );
       } else {
         if (!context.mounted) return;
+        _dismissPaymentLoading();
         _updateSubscriptionFlow(
           PaymentFlowStage.success,
           'Suscripción creada correctamente',
@@ -1001,6 +1038,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ? (payload['message']?.toString() ?? 'No se pudo actualizar el plan')
           : 'No se pudo actualizar el plan';
       if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // cerrar loading dialog
       _updateSubscriptionFlow(PaymentFlowStage.error, message);
       ScaffoldMessenger.of(
         context,
@@ -1011,6 +1049,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       });
     } catch (_) {
       if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // cerrar loading dialog
       const message = 'No se pudo abrir el navegador';
       _updateSubscriptionFlow(PaymentFlowStage.error, message);
       ScaffoldMessenger.of(
@@ -1021,6 +1060,45 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _pendingPlanMonthly = null;
       });
     }
+  }
+
+  bool _paymentLoadingVisible = false;
+
+  void _showPaymentLoading() {
+    if (_paymentLoadingVisible || !mounted) return;
+    _paymentLoadingVisible = true;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(width: 48, height: 48, child: CircularProgressIndicator(strokeWidth: 3)),
+                const SizedBox(height: 20),
+                Text('Preparando pago...', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.grey.shade700, decoration: TextDecoration.none)),
+                const SizedBox(height: 6),
+                Text('Serás redirigido al navegador', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, decoration: TextDecoration.none)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _dismissPaymentLoading() {
+    if (!_paymentLoadingVisible) return;
+    _paymentLoadingVisible = false;
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
   }
 
   void _updateSubscriptionFlow(PaymentFlowStage stage, String message) {
@@ -1048,6 +1126,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _subscriptionFlowStage == PaymentFlowStage.confirming;
 
   Future<void> _verifySubscriptionAfterCheckout() async {
+    _dismissPaymentLoading();
     if (!_awaitingSubscriptionCheckout || _isVerifyingSubscription) return;
 
     final gateway = _pendingPaymentGateway.toUpperCase();
@@ -1591,11 +1670,265 @@ class _PaymentProcessingDialogState extends State<_PaymentProcessingDialog>
 
 // ─── Firma Digital Sheet ──────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Página de sugerencias del usuario
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SugerenciasPage extends StatefulWidget {
+  const _SugerenciasPage();
+
+  @override
+  State<_SugerenciasPage> createState() => _SugerenciasPageState();
+}
+
+class _SugerenciasPageState extends State<_SugerenciasPage> {
+  List<Map<String, dynamic>> _sugerencias = [];
+  bool _loading = true;
+  final _msgController = TextEditingController();
+  bool _enviando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  @override
+  void dispose() {
+    _msgController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargar() async {
+    try {
+      setState(() => _loading = true);
+      final res = await getIt<DioClient>().get('/Sugerencias/mis');
+      final data = res.data;
+      if (data is Map && data['data'] is List) {
+        _sugerencias = (data['data'] as List).cast<Map<String, dynamic>>();
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _enviar() async {
+    if (_msgController.text.trim().isEmpty) return;
+    setState(() => _enviando = true);
+    try {
+      await getIt<DioClient>().post('/Sugerencias', data: {'mensaje': _msgController.text.trim()});
+      _msgController.clear();
+      FocusScope.of(context).unfocus();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: const Text('Sugerencia enviada'), backgroundColor: Colors.green.shade600),
+        );
+      }
+      await _cargar();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al enviar')),
+        );
+      }
+    }
+    if (mounted) setState(() => _enviando = false);
+  }
+
+  Color _estadoColor(String estado) {
+    switch (estado.toUpperCase()) {
+      case 'ATENDIDA':
+      case 'RESUELTA':
+        return Colors.green.shade700;
+      case 'EN PROCESO':
+        return Colors.blue.shade700;
+      case 'NUEVA':
+      default:
+        return Colors.orange.shade700;
+    }
+  }
+
+  Color _estadoBg(String estado) {
+    switch (estado.toUpperCase()) {
+      case 'ATENDIDA':
+      case 'RESUELTA':
+        return Colors.green.shade50;
+      case 'EN PROCESO':
+        return Colors.blue.shade50;
+      case 'NUEVA':
+      default:
+        return Colors.orange.shade50;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Sugerencias')),
+      body: Column(
+        children: [
+          // Input para nueva sugerencia
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2)),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.lightbulb_outline, size: 18, color: Colors.amber.shade700),
+                    const SizedBox(width: 6),
+                    Text('Nueva sugerencia', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: cs.primary)),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _msgController,
+                  maxLines: 3,
+                  maxLength: 500,
+                  decoration: const InputDecoration(
+                    hintText: 'Cuéntanos cómo podemos mejorar...',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed: _enviando ? null : _enviar,
+                    icon: _enviando
+                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.send, size: 16),
+                    label: Text(_enviando ? 'Enviando...' : 'Enviar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Lista de sugerencias
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _sugerencias.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.chat_bubble_outline, size: 48, color: Colors.grey.shade300),
+                            const SizedBox(height: 12),
+                            Text('No has enviado sugerencias aún', style: TextStyle(color: Colors.grey.shade500)),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _cargar,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _sugerencias.length,
+                          itemBuilder: (_, i) {
+                            final s = _sugerencias[i];
+                            final estado = (s['estado'] ?? 'NUEVA').toString();
+                            final respuesta = s['respuestaAdmin']?.toString();
+                            final fecha = DateTime.tryParse(s['fechaCreacion']?.toString() ?? '');
+
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: Colors.grey.shade200),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Estado + fecha
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: _estadoBg(estado),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text(
+                                          estado,
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _estadoColor(estado)),
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      if (fecha != null)
+                                        Text(
+                                          '${fecha.day}/${fecha.month}/${fecha.year}',
+                                          style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+
+                                  // Mensaje del usuario
+                                  Text(
+                                    s['mensaje']?.toString() ?? '',
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+
+                                  // Respuesta del admin
+                                  if (respuesta != null && respuesta.isNotEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: cs.primary.withValues(alpha: 0.05),
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: cs.primary.withValues(alpha: 0.15)),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(Icons.support_agent, size: 14, color: cs.primary),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                'Respuesta del equipo',
+                                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: cs.primary),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(respuesta, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class FirmaDigitalSheet extends StatefulWidget {
   const FirmaDigitalSheet({super.key});
 
   @override
-  State<_FirmaDigitalSheet> createState() => _FirmaDigitalSheetState();
+  State<FirmaDigitalSheet> createState() => _FirmaDigitalSheetState();
 }
 
 class _FirmaDigitalSheetState extends State<FirmaDigitalSheet> {

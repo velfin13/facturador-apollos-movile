@@ -52,7 +52,7 @@ class Producto extends Equatable {
       case 'S':
         return 'Servicio';
       default:
-        return 'No definido';
+        return 'Producto';
     }
   }
 

@@ -47,3 +47,31 @@ class CreateFacturaEvent extends FacturaEvent {
   @override
   List<Object?> get props => [factura];
 }
+
+class VerificarAutorizacionEvent extends FacturaEvent {
+  final int idSysFcCabVenta;
+  final int idSysPeriodo;
+
+  const VerificarAutorizacionEvent({
+    required this.idSysFcCabVenta,
+    required this.idSysPeriodo,
+  });
+
+  @override
+  List<Object?> get props => [idSysFcCabVenta, idSysPeriodo];
+}
+
+class CreateNotaCreditoEvent extends FacturaEvent {
+  final int idSysFcCabVenta;
+  final int idSysPeriodo;
+  final String motivo;
+
+  const CreateNotaCreditoEvent({
+    required this.idSysFcCabVenta,
+    required this.idSysPeriodo,
+    required this.motivo,
+  });
+
+  @override
+  List<Object?> get props => [idSysFcCabVenta, idSysPeriodo, motivo];
+}

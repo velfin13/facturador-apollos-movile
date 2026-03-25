@@ -1,7 +1,7 @@
 /// Configuración de la API
 class ApiConfig {
   // URL base de la API
-  static const String baseUrl = 'http://10.123.144.44:5117/api';
+  static const String baseUrl = 'http://172.24.170.44:5117/api';
 
   // Endpoints
   static const String clientes = '/Clientes';

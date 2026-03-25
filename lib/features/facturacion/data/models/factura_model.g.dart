@@ -10,6 +10,7 @@ FacturaModel _$FacturaModelFromJson(Map<String, dynamic> json) => FacturaModel(
   idSysFcCabVenta: json['idSysFcCabVenta'] as String,
   idSysPeriodo: json['idSysPeriodo'] as String,
   tipo: json['tipo'] as String?,
+  estado: json['estado'] as String?,
   fecha: DateTime.parse(json['fecha'] as String),
   idSysFcCliente: json['idSysFcCliente'] as String,
   clienteNombre: json['clienteNombre'] as String?,
@@ -30,6 +31,7 @@ FacturaModel _$FacturaModelFromJson(Map<String, dynamic> json) => FacturaModel(
 Map<String, dynamic> _$FacturaModelToJson(FacturaModel instance) =>
     <String, dynamic>{
       'tipo': ?instance.tipo,
+      'estado': ?instance.estado,
       'fecha': instance.fecha.toIso8601String(),
       'clienteNombre': ?instance.clienteNombre,
       'numFact': ?instance.numFact,

@@ -50,3 +50,24 @@ class FacturaCreated extends FacturaState {
   @override
   List<Object?> get props => [factura];
 }
+
+class AutorizacionVerificada extends FacturaState {
+  final int idSysFcCabVenta;
+  final String estado;
+
+  const AutorizacionVerificada({required this.idSysFcCabVenta, required this.estado});
+
+  @override
+  List<Object?> get props => [idSysFcCabVenta, estado];
+}
+
+class NotaCreditoCreating extends FacturaState {}
+
+class NotaCreditoCreated extends FacturaState {
+  final Factura notaCredito;
+
+  const NotaCreditoCreated(this.notaCredito);
+
+  @override
+  List<Object?> get props => [notaCredito];
+}

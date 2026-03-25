@@ -2,6 +2,7 @@ import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:injectable/injectable.dart';
 import '../../domain/entities/factura.dart';
+import '../../domain/repositories/factura_repository.dart';
 import '../../domain/usecases/get_facturas.dart';
 import '../../domain/usecases/get_factura.dart';
 import '../../domain/usecases/create_factura.dart';
@@ -14,6 +15,7 @@ class FacturaBloc extends Bloc<FacturaEvent, FacturaState> {
   final GetFacturas getFacturas;
   final GetFactura getFactura;
   final CreateFactura createFactura;
+  final FacturaRepository _repository;
 
   List<Factura> _loadedFacturas = [];
   String _currentSearch = '';
@@ -27,13 +29,17 @@ class FacturaBloc extends Bloc<FacturaEvent, FacturaState> {
     required this.getFacturas,
     required this.getFactura,
     required this.createFactura,
-  }) : super(FacturaInitial()) {
+    required FacturaRepository repository,
+  })  : _repository = repository,
+        super(FacturaInitial()) {
     on<GetFacturasEvent>(_onGetFacturas);
     on<SearchFacturasEvent>(_onSearch);
     on<FilterByDateRangeEvent>(_onFilterByDate);
     on<LoadMoreFacturasEvent>(_onLoadMore);
     on<GetFacturaDetailsEvent>(_onGetFacturaDetails);
     on<CreateFacturaEvent>(_onCreateFactura);
+    on<CreateNotaCreditoEvent>(_onCreateNotaCredito);
+    on<VerificarAutorizacionEvent>(_onVerificarAutorizacion);
   }
 
   GetFacturasParams get _currentParams => GetFacturasParams(
@@ -164,6 +170,39 @@ class FacturaBloc extends Bloc<FacturaEvent, FacturaState> {
     result.fold(
       (failure) => emit(FacturaError(failure.message)),
       (factura) => emit(FacturaCreated(factura)),
+    );
+  }
+
+  Future<void> _onCreateNotaCredito(
+    CreateNotaCreditoEvent event,
+    Emitter<FacturaState> emit,
+  ) async {
+    emit(NotaCreditoCreating());
+    final result = await _repository.createNotaCredito(
+      idSysFcCabVenta: event.idSysFcCabVenta,
+      idSysPeriodo: event.idSysPeriodo,
+      motivo: event.motivo,
+    );
+    result.fold(
+      (failure) => emit(FacturaError(failure.message)),
+      (nc) => emit(NotaCreditoCreated(nc)),
+    );
+  }
+
+  Future<void> _onVerificarAutorizacion(
+    VerificarAutorizacionEvent event,
+    Emitter<FacturaState> emit,
+  ) async {
+    final result = await _repository.verificarAutorizacion(
+      idSysFcCabVenta: event.idSysFcCabVenta,
+      idSysPeriodo: event.idSysPeriodo,
+    );
+    result.fold(
+      (_) {}, // Silencioso si falla
+      (estado) => emit(AutorizacionVerificada(
+        idSysFcCabVenta: event.idSysFcCabVenta,
+        estado: estado,
+      )),
     );
   }
 }

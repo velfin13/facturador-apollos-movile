@@ -4,6 +4,7 @@ class Factura extends Equatable {
   final String id; // idSysFcCabVenta
   final String periodo; // idSysPeriodo
   final String? tipo;
+  final String? estado;
   final DateTime fecha;
   final String clienteId; // idSysFcCliente
   final String? clienteNombre; // desde cliente
@@ -20,6 +21,7 @@ class Factura extends Equatable {
     required this.id,
     required this.periodo,
     this.tipo,
+    this.estado,
     required this.fecha,
     required this.clienteId,
     this.clienteNombre,
@@ -38,6 +40,7 @@ class Factura extends Equatable {
     id,
     periodo,
     tipo,
+    estado,
     fecha,
     clienteId,
     clienteNombre,

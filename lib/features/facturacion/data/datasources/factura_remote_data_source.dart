@@ -17,6 +17,15 @@ abstract class FacturaRemoteDataSource {
   Future<FacturaModel> getFactura(String id);
   Future<FacturaModel> createFactura(FacturaModel factura);
   Future<void> deleteFactura(String id, {String? motivo});
+  Future<FacturaModel> createNotaCredito({
+    required int idSysFcCabVenta,
+    required int idSysPeriodo,
+    required String motivo,
+  });
+  Future<Map<String, dynamic>> verificarAutorizacion({
+    required int idSysFcCabVenta,
+    required int idSysPeriodo,
+  });
 }
 
 @LazySingleton(as: FacturaRemoteDataSource)
@@ -122,6 +131,57 @@ class FacturaRemoteDataSourceImpl implements FacturaRemoteDataSource {
       throw ApiException('Error al crear venta');
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
+    }
+  }
+
+  @override
+  Future<FacturaModel> createNotaCredito({
+    required int idSysFcCabVenta,
+    required int idSysPeriodo,
+    required String motivo,
+  }) async {
+    try {
+      final response = await _dioClient.post(
+        '/Ventas/nota-credito',
+        data: {
+          'idSysFcCabVenta': idSysFcCabVenta,
+          'idSysPeriodo': idSysPeriodo,
+          'motivo': motivo,
+          'fecha': DateTime.now().toIso8601String(),
+        },
+      );
+
+      if (response.data is Map && response.data['data'] != null) {
+        return FacturaModel.fromJson(
+          response.data['data'] as Map<String, dynamic>,
+        );
+      }
+      throw ApiException('Error al crear nota de crédito');
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> verificarAutorizacion({
+    required int idSysFcCabVenta,
+    required int idSysPeriodo,
+  }) async {
+    try {
+      final response = await _dioClient.post(
+        '/Ventas/verificar-autorizacion',
+        data: {
+          'idSysFcCabVenta': idSysFcCabVenta,
+          'idSysPeriodo': idSysPeriodo,
+        },
+      );
+
+      if (response.data is Map && response.data['data'] != null) {
+        return response.data['data'] as Map<String, dynamic>;
+      }
+      return {'estado': 'PENDIENTE'};
+    } on DioException {
+      return {'estado': 'PENDIENTE'};
     }
   }
 

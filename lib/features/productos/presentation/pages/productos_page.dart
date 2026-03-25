@@ -190,10 +190,10 @@ class _ProductosPageState extends State<ProductosPage> {
                         onRefresh: () => _onRefresh(context),
                         child: Column(
                           children: [
-                            // Contador
+                            // Resumen
                             if (state.productos.isNotEmpty)
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
+                                padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
                                 child: Row(
                                   children: [
                                     Text(
@@ -214,6 +214,16 @@ class _ProductosPageState extends State<ProductosPage> {
                                             ),
                                       ),
                                     ],
+                                    const Spacer(),
+                                    Icon(Icons.inventory_2_outlined, size: 12, color: theme.colorScheme.outline),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Stock total: ${filtered.fold<int>(0, (sum, p) => sum + p.stock)}',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.outline,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
